@@ -1,5 +1,5 @@
 # mouse_psg
 
-This Python project automates the process of polysomnogram grading for mice using multi-channel CNN-LSTM networks.
+This Python project uses multi-channel CNN-LSTM networks to automate the process of polysomnogram grading for mice.
 
 Author: Hudson Liu
