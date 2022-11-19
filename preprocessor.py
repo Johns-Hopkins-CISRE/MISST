@@ -38,8 +38,10 @@ class PreProcessor():
         try:
             return mne.io.read_raw_edf(self.PATH + "01 Raw Data/1/BASAL FEMALE B6 280 20211019 LJK - EDF.edf")
         except FileNotFoundError:
-            raise FileNotFoundError("The example edf could not be found," +
-                                    "try checking the 01 Raw Data directory structure.")
+            raise FileNotFoundError(
+                "The example edf could not be found," +
+                "try checking the 01 Raw Data directory structure."
+            )
 
     def get_edf_info(self, edf):
         """For a given edf, returns the sample rate and number of channels"""
@@ -95,9 +97,11 @@ class PreProcessor():
 
                 # Don't append data if it's not a 1:1 ratio
                 if int(event_samples) != int(np.size(edf_array, axis=1)):
-                    print(f"WARNING: Directory \"{directory}\" " + 
+                    print(
+                        f"WARNING: Directory \"{directory}\" " + 
                         "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
-                        "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt.")
+                        "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt."
+                    )
                 else:
                     # Split data into epochs and merge edf with annotations
                     prev = 0

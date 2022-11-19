@@ -13,6 +13,7 @@ import keras.backend as K
 from preprocessor import PreProcessor
 from keras.layers import (
     Conv1D,
+    MaxPooling1D,
     Lambda,
     Reshape,
     LSTM,
@@ -41,31 +42,33 @@ class ModelTrainer():
 
         # Defining CNN inputs & layers
         inputs = []
-        convs = []
+        pool = []
         for _ in range(0, NUM_CHANNELS):
             inputs.append(keras.Input(batch_input_shape=(self.BATCH_SIZE, int(RECORDING_LEN * SAMPLE_RATE), 1)))
-            convs.append(Conv1D(filters=64, kernel_size=3, activation='relu', padding='same')(inputs[-1]))
+            conv = Conv1D(filters=4, kernel_size=10, activation='relu', padding='same')(inputs[-1])
+            pool.append(MaxPooling1D(pool_size=100, padding="same")(conv))
         
         # Vertically stacks inputs
-        vstack = Lambda(lambda a: K.stack(a, axis=3))(convs)
-        reshape = Reshape(target_shape=(self.BATCH_SIZE, int(RECORDING_LEN * SAMPLE_RATE), convs))
+        vstack = Lambda(lambda a: K.stack(a, axis=2))(pool)
+        reshape = Reshape(target_shape=(
+            vstack.shape.as_list()[1], 
+            vstack.shape.as_list()[2] * vstack.shape.as_list()[3]
+        ))(vstack)
         
         # Uses Stacked-LSTM structure
         lstm1 = LSTM(units=50, return_sequences=True)(reshape)
         lstm2 = LSTM(units=50)(lstm1)
 
-        # Dense layers
+        # Dense layers & Output
         dense1 = Dense(units=500, activation="relu")(lstm2)
         dense2 = Dense(units=500, activation="relu")(dense1)
-        
-        # Outputs
         output = Dense(units=NUM_CLASSES)(dense2)
 
         # Create Model
         model = keras.Model(inputs=inputs, outputs=output)
 
         # Save plot of model
-        keras.utils.plot_model(model, to_file="Keras_Model_Plot.png")
+        keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
 
         elapsed = time.time() - start
         print(f"Finished creating model || Elapsed time: {elapsed}s")
