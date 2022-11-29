@@ -29,6 +29,7 @@ class GUI():
     """Acts as a model control panel, allowing for rapid manual hyperparameter & architecture tuning"""
 
     model_is_running = False
+    optimizers = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
 
     def __init__(self, path):
         """Creates GUI"""
@@ -50,25 +51,25 @@ class GUI():
         # Graphs
         fig = Figure(figsize = (5, 2), dpi = 120)
         self.plot1 = fig.add_subplot(111)
-        self.plot1.set_title("Training & Testing Loss Per Epochs")
-        self.plot1.set_xlabel("Epochs")
+        self.plot1.set_title("Loss (Train + Test)")
+        self.plot1.set_xlabel("Batches")
         self.plot1.set_ylabel("Loss")
         self.canvas = FigureCanvasTkAgg(fig, master = f2)
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side="top", expand=True, fill='both', pady=(0, 10))
+        self.canvas.get_tk_widget().pack(side="top", expand=True, fill="both", pady=(0, 10))
         fig = Figure(figsize = (5, 2), dpi = 120)
         self.plot2= fig.add_subplot(111)
-        self.plot2.set_title("Time Per Epochs")
-        self.plot2.set_xlabel("Epochs")
-        self.plot2.set_ylabel("Time (s)")
+        self.plot2.set_title("Accuracy (Train + Test)")
+        self.plot2.set_xlabel("Batches")
+        self.plot2.set_ylabel("Accuracy (%)")
         self.canvas = FigureCanvasTkAgg(fig, master = f2)
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side="bottom", expand=True, fill='both', pady=(10, 0))
+        self.canvas.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=(10, 0))
 
         # Epoch Progress
         self.caption = ttk.Label(f1, text="Epochs", font=("Arial", 15))
         self.caption.pack(side="top")
-        self.pb = ttk.Progressbar(f1, orient='horizontal', mode='determinate', length=300)
+        self.pb = ttk.Progressbar(f1, orient="horizontal", mode="determinate", length=300)
         self.pb.pack(side="top")
         self.value_label = ttk.Label(f1, text="Current Progress: 0%", font=("Arial", 11))
         self.value_label.pack(side="top")
@@ -76,7 +77,7 @@ class GUI():
         # Batch Progress
         self.caption2 = ttk.Label(f1, text="Batches", font=("Arial", 15))
         self.caption2.pack(side="top", pady=(20, 0))
-        self.pb2 = ttk.Progressbar(f1, orient='horizontal', mode='determinate', length=300)
+        self.pb2 = ttk.Progressbar(f1, orient="horizontal", mode="determinate", length=300)
         self.pb2.pack(side="top")
         self.value_label2 = ttk.Label(f1, text="Current Progress: 0%", font=("Arial", 11))
         self.value_label2.pack(side="top")
@@ -101,43 +102,52 @@ class GUI():
         )
         self.button.grid(column=0, row=0)
 
+        # Model Config Label
+        model_config_label = tk.Label(f3, text="Model Config", font=("Arial", 15))
+        model_config_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
+
         # User Input Fields
         epochs_label = tk.Label(f3, text="Epochs:", font=("Arial", 13))
-        epochs_label.grid(row=0, column=0)
+        epochs_label.grid(row=1, column=0)
         self.epochs = tk.StringVar()
         self.epochs_i = tk.Entry(f3, textvariable=self.epochs)
-        self.epochs_i.grid(row=0, column=1)
+        self.epochs_i.grid(row=1, column=1)
 
         batches_label = tk.Label(f3, text="Batches:", font=("Arial", 13))
-        batches_label.grid(row=1, column=0)
+        batches_label.grid(row=2, column=0)
         self.batches = tk.StringVar()
         self.batches_i = tk.Entry(f3, textvariable=self.batches)
-        self.batches_i.grid(row=1, column=1)
+        self.batches_i.grid(row=2, column=1)
 
         filters_label = tk.Label(f3, text="Filters:", font=("Arial", 13))
-        filters_label.grid(row=2, column=0)
+        filters_label.grid(row=3, column=0)
         self.filters = tk.StringVar()
         self.filters_i = tk.Entry(f3, textvariable=self.filters)
-        self.filters_i.grid(row=2, column=1)
+        self.filters_i.grid(row=3, column=1)
 
         lstm_label = tk.Label(f3, text="LSTM Nodes:", font=("Arial", 13))
-        lstm_label.grid(row=3, column=0)
+        lstm_label.grid(row=4, column=0)
         self.lstm = tk.StringVar()
         self.lstm_i = tk.Entry(f3, textvariable=self.lstm)
-        self.lstm_i.grid(row=3, column=1)
+        self.lstm_i.grid(row=4, column=1)
 
         dense_label = tk.Label(f3, text="Dense Nodes:", font=("Arial", 13))
-        dense_label.grid(row=4, column=0)
+        dense_label.grid(row=5, column=0)
         self.dense = tk.StringVar()
         self.dense_i = tk.Entry(f3, textvariable=self.dense)
-        self.dense_i.grid(row=4, column=1)
+        self.dense_i.grid(row=5, column=1)
+
+        # Optimizer Multiple Choice
+        optimizer_str = tk.StringVar(value=" ".join(self.optimizers))
+        self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
+        self.op_mc.grid(row=6, column=0, columnspan=2, pady=20)
 
         # Load Default Best Inputs
         buttonborder1 = tk.Frame(f3,
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder1.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        buttonborder1.grid(row=7, column=0, columnspan=2, pady=(0, 20))
         self.ld_button = tk.Button(
             buttonborder1, text="Load Defaults", command = self.load_defaults,
             width=15, height=1, font=("Arial", 15)
@@ -149,7 +159,7 @@ class GUI():
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder2.grid(row=6, column=0, columnspan=2)
+        buttonborder2.grid(row=8, column=0, columnspan=2)
         self.ci_button = tk.Button(
             buttonborder2, text="Clear Inputs", command = self.clear_inputs,
             width=15, height=1, font=("Arial", 15)
@@ -162,11 +172,9 @@ class GUI():
         """Toggles training: if running, stop, if not running, start"""
         if self.model_is_running:
             # Saves the model & closes the thread
-            self.button["text"] = "Start Training"
+            self.finished_training()
             while self.model_is_running:
                 pass
-            self.load_defaults["state"] = "enabled"
-            self.clear_inputs["state"] = "enabled"
         else:
             # Starts a separate thread for model training
             self.button["text"] = "Abort Training"
@@ -177,14 +185,25 @@ class GUI():
             t1 = threading.Thread(target=self.work)
             t1.start()
 
+    def finished_training(self):
+        """Resets the GUI after the model finishes training"""
+        self.model_is_running = False
+        self.button["text"] = "Start Training"
+        self.button["state"] = "normal"
+        self.ld_button["state"] = "normal"
+        self.ci_button["state"] = "normal"
+
     def load_defaults(self):
         """Load the default parameters for training the model"""
+        DEFAULT_OPTIMIZER = "adam"
+        
         self.clear_inputs()
         self.epochs_i.insert(0, "100")
         self.batches_i.insert(0, "4")
         self.filters_i.insert(0, "4")
         self.lstm_i.insert(0, "50")
         self.dense_i.insert(0, "500")
+        self.op_mc.selection_set(self.optimizers.index(DEFAULT_OPTIMIZER), self.optimizers.index(DEFAULT_OPTIMIZER))
     
     def clear_inputs(self):
         """Clear the inputted parameters for training the model"""
@@ -193,24 +212,14 @@ class GUI():
         self.filters_i.delete(0, tk.END)
         self.lstm_i.delete(0, tk.END)
         self.dense_i.delete(0, tk.END)
+        self.op_mc.selection_clear(0, tk.END)
 
-    def get_params(self):
-        """Extract params from entry fields"""
-        try:
-            return {
-                "epochs": int(self.epochs.get()),
-                "batch_size": int(self.batches.get()),
-                "filters": int(self.filters.get()),
-                "lstm_nodes": int(self.lstm.get()),
-                "dense_nodes": int(self.lstm.get())
-            }
-        except ValueError:
-            print("WARNING: The inputted parameters were invalid, please double check them.")
-    
     def work(self):
         """Trains model once button is clicked"""
+        # Creates single dict that holds all needed GUI objects
         gui_objs = {
             "plot1": self.plot1, 
+            "plot2": self.plot2,
             "canvas": self.canvas,
             "pb": self.pb, 
             "value_label": self.value_label, 
@@ -221,36 +230,66 @@ class GUI():
             "plot_time": self.plot_time,
             "button": self.button
         }
-        params = self.get_params()
-        
-        trainer = ModelTrainer(self.path, params)
-        callback = GUICallback(gui_objs)
-        trainer.enable_callbacks(callback) #NOTE: We'll need to make an if statement that runs a different fit statement if callback is undefined
-        model = trainer.create_model()
-        # data = trainer.import_data()
-        # trainer.train_model(model, data)
-        # self.model_is_running = False
+
+        # Gets all model parameters from user input
+        valid_params = True
+        try:
+            params = {
+                "epochs": int(self.epochs.get()),
+                "batch_size": int(self.batches.get()),
+                "filters": int(self.filters.get()),
+                "lstm_nodes": int(self.lstm.get()),
+                "dense_nodes": int(self.lstm.get()),
+                "optimizer": self.optimizers[self.op_mc.curselection()[0]]
+            }
+        except ValueError:
+            print("WARNING: The inputted parameters were invalid, please double check them. The training will abort.")
+            valid_params = False
+
+        # Initialize the ModelTrainer and GUICallback and train the model
+        if valid_params:
+            trainer = ModelTrainer(self.path, params)
+            callback = GUICallback(gui_objs, params)
+            trainer.enable_callbacks(callback) #NOTE: We'll need to make an if statement that runs a different fit statement if callback is undefined
+            model = trainer.create_model()
+            data = trainer.import_data()
+            trainer.train_model(model, data)
+        self.finished_training()
 
 
 class GUICallback(keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
     
-    def __init__(self, gui_objs):
-        """Passes list of GUI Objs to inside of Callback to maintain encapsulation"""
+    train_loss = test_loss = train_acc = test_acc = []
+
+    def __init__(self, gui_objs, params):
+        """Passes list of GUI Objs & model params to inside of Callback to maintain encapsulation"""
         super(GUICallback, self).__init__()
         self.gui_objs = gui_objs
+        self.EPOCH_PERCENT = 100.0 / float(params["epochs"])
+        self.STEP_PERCENT = 100.0 / float(params["batch_size"] * params["epochs"])
+        self.BATCH_SIZE = params["batch_size"]
     
     def on_train_begin(self):
         """Re-enables the stop training button"""
-        self.gui_objs["button"]["state"] = "enabled"
+        self.gui_objs["button"]["state"] = "normal"
 
     def on_train_batch_end(self, batch, logs=None):
-        """Checks for button press and updates batches progress bar"""
-        if self.gui_objs["button"]["text"] == "Start Training":
-            self.model.stop_training = True
+        """Updates for training batches"""
+        self.batch_update()
+        self.train_loss.append(logs["loss"])
+        self.test_acc.append
     
     def on_test_batch_end(self, batch, logs=None):
-        """Checks for button press and udpates batches progress bar"""
+        """Updates for test batches"""
+        self.batch_update()
+        self.test_loss.append(logs["loss"])
+        self.test_acc.append(logs[logs.keys()[1]])
+    
+    def batch_update(self):
+        """Checks for button press and updates batches progress bar"""
+        self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
+        self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']}%"
         if self.gui_objs["button"]["text"] == "Start Training":
             self.model.stop_training = True
     
@@ -259,12 +298,34 @@ class GUICallback(keras.callbacks.Callback):
         self.epoch_start = time.time()
     
     def on_epoch_end(self, epoch, logs=None):
-        """Reset batch progress bar, Update Epochs progress bar, and calculate seconds per epoch"""
+        """Updates plots, progress bars, and text info"""
+        # Update progres bars
+        plot_s = time.time()
         self.gui_objs["pb2"]["value"] = 0
         self.gui_objs["value_label2"]["text"] = "Current Progress: 0%"
-        # self.gui_objs["pb1"]["value"]
-        self.gui_objs["iter_speed"]["text"] = "Sec/Epoch: " + str(time.time() - self.epoch_start)
+        self.gui_objs["pb"]["value"] += self.EPOCH_PERCENT
+        self.gui_objs["value_label"]["text"] = f"Current Progress: {self.gui_objs['pb']['value']}%"
+        
+        # Update iter speed
+        self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {time.time() - self.epoch_start}s"
+        
+        # Update Plot 1 
+        self.gui_objs["plot1"].scatter(self.train_loss, color="blue")
+        self.gui_objs["plot1"].plot(self.train_loss, color="blue")
+        self.gui_objs["plot1"].scatter(self.test_loss, color="red")
+        self.gui_objs["plot1"].plot(self.test_loss, color="red")
 
+        # Update Plot 2
+        self.gui_objs["plot2"].scatter(self.train_acc, color="blue")
+        self.gui_objs["plot2"].plot(self.train_acc, color="blue")
+        self.gui_objs["plot2"].scatter(self.test_acc, color="red")
+        self.gui_objs["plot2"].plot(self.test_acc, color="red")
+
+        # Update Canvas
+        self.gui_objs["canvas"].draw()
+
+        # Update plot time
+        self.gui_objs["plot_time"]["text"] = f"Plot Time: {plot_s - time.time()}s"
 
 class ModelTrainer():
     """Creates and Trains Model"""
@@ -297,7 +358,7 @@ class ModelTrainer():
         pool = []
         for _ in range(0, NUM_CHANNELS):
             inputs.append(keras.Input(batch_input_shape=(self.params["batch_size"], int(RECORDING_LEN * SAMPLE_RATE), 1)))
-            conv = Conv1D(filters=self.params["filters"], kernel_size=10, activation='relu', padding='same')(inputs[-1])
+            conv = Conv1D(filters=self.params["filters"], kernel_size=10, activation="relu", padding="same")(inputs[-1])
             pool.append(MaxPooling1D(pool_size=100, padding="same")(conv))
         
         # Vertically stacks inputs
@@ -332,6 +393,7 @@ class ModelTrainer():
     
     def train_model(self, model, data):
         model_checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other Files/")
+        model.compile(optimizer=self.params["optimizer"], metrics=["accuracy"])
         model.fit(epochs=self.params["epochs"], callbacks=[model_checkpoint_callback])
         print("stub")
     
@@ -347,5 +409,6 @@ if __name__ == "__main__":
     # "filters": 4
     # "lstm_nodes": 50
     # "dense_nodes": 500
+    # "optimizers": "adam"
     # }
     # model = trainer.create_model()
