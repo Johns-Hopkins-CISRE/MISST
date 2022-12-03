@@ -12,7 +12,9 @@ import keras
 import threading
 import tkinter as tk
 import keras.backend as K
+import tensorflow as tf
 from tkinter import ttk
+from overrides import override
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from preprocessor import PreProcessor
@@ -49,22 +51,30 @@ class GUI():
         f3.pack(side="left", padx=(10, 20), pady=20)
 
         # Graphs
-        fig = Figure(figsize = (5, 2), dpi = 120)
-        self.plot1 = fig.add_subplot(111)
+        fig1 = Figure(figsize = (5, 2), dpi = 100)
+        self.plot1 = fig1.add_subplot(111)
         self.plot1.set_title("Loss (Train + Test)")
         self.plot1.set_xlabel("Batches")
         self.plot1.set_ylabel("Loss")
-        self.canvas = FigureCanvasTkAgg(fig, master = f2)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side="top", expand=True, fill="both", pady=(0, 10))
-        fig = Figure(figsize = (5, 2), dpi = 120)
-        self.plot2= fig.add_subplot(111)
+        self.canvas1 = FigureCanvasTkAgg(fig1, master = f2)
+        self.canvas1.draw()
+        self.canvas1.get_tk_widget().pack(side="top", expand=True, fill="both", pady=(0, 10))
+        fig2 = Figure(figsize = (5, 2), dpi = 100)
+        self.plot2 = fig2.add_subplot(111)
         self.plot2.set_title("Accuracy (Train + Test)")
         self.plot2.set_xlabel("Batches")
         self.plot2.set_ylabel("Accuracy (%)")
-        self.canvas = FigureCanvasTkAgg(fig, master = f2)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=(10, 0))
+        self.canvas2 = FigureCanvasTkAgg(fig2, master = f2)
+        self.canvas2.draw()
+        self.canvas2.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=10)
+        fig3 = Figure(figsize = (5, 2), dpi = 100)
+        self.plot3= fig3.add_subplot(111)
+        self.plot3.set_title("Prediction Distribution (Train + Test)")
+        self.plot3.set_xlabel("Class")
+        self.plot3.set_ylabel("Num Predictions")
+        self.canvas3 = FigureCanvasTkAgg(fig3, master = f2)
+        self.canvas3.draw()
+        self.canvas3.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=(10, 0))
 
         # Epoch Progress
         self.caption = ttk.Label(f1, text="Epochs", font=("Arial", 15))
@@ -220,7 +230,10 @@ class GUI():
         gui_objs = {
             "plot1": self.plot1, 
             "plot2": self.plot2,
-            "canvas": self.canvas,
+            "plot3": self.plot3,
+            "canvas1": self.canvas1,
+            "canvas2": self.canvas2,
+            "canvas3": self.canvas3,
             "pb": self.pb, 
             "value_label": self.value_label, 
             "pb2": self.pb2, 
@@ -261,6 +274,10 @@ class GUICallback(keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
     
     train_loss = test_loss = train_acc = test_acc = []
+    pred_freq = [0, 0, 0]
+    true_freq = [0, 0, 0]
+    y_true = None
+    y_pred = None
 
     def __init__(self, gui_objs, params):
         """Passes list of GUI Objs & model params to inside of Callback to maintain encapsulation"""
@@ -270,33 +287,65 @@ class GUICallback(keras.callbacks.Callback):
         self.STEP_PERCENT = 100.0 / float(params["batch_size"] * params["epochs"])
         self.BATCH_SIZE = params["batch_size"]
     
-    def on_train_begin(self):
+    @override
+    def set_model(self, model):
+        """Initialize variables when model is set"""
+        self.y_true = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
+        self.y_pred = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
+    
+    def pred_metric(self, y_true, y_pred):
+        """Fake metric that gets model predictions"""
+        self.y_true.assign(y_true)
+        self.y_pred.assign(y_pred)
+        return 0
+
+    @override
+    def on_train_begin(self, logs=None):
         """Re-enables the stop training button"""
         self.gui_objs["button"]["state"] = "normal"
 
+    @override
+    def on_train_end(self, logs=None):
+        """Delete the y_true and y_pred to clear up memory"""
+        del self.y_true, self.y_pred
+        # later, try adding del self.gui_objs and see what that does
+
+    @override
     def on_train_batch_end(self, batch, logs=None):
         """Updates for training batches"""
         self.batch_update()
         self.train_loss.append(logs["loss"])
         self.test_acc.append
     
+    @override
     def on_test_batch_end(self, batch, logs=None):
         """Updates for test batches"""
         self.batch_update()
         self.test_loss.append(logs["loss"])
         self.test_acc.append(logs[logs.keys()[1]])
     
+    def process_model_output(self, y):
+        """Takes the model output and returns which class was outputted"""
+        print("stub")
+        print(f"y: {y.numpy()}")
+        print(f"y shape: {y.numpy().shape}")
+        #I cant finish this currently w/o the actual values of y or y_shape so I'll just leave this as a stub until i can train the model
+
     def batch_update(self):
-        """Checks for button press and updates batches progress bar"""
-        self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
-        self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']}%"
+        """Checks for button press, updates batches progress bar, and adds to prediction histogram"""
         if self.gui_objs["button"]["text"] == "Start Training":
             self.model.stop_training = True
-    
-    def on_epoch_start(self, epoch, logs=None):
+        self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
+        self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']}%"
+        # = self.process_model_output(self.y_pred) 
+        self.gui_objs["plot3"].bar(["S0", "S2", "REM"], self.pred_freq)
+
+    @override
+    def on_epoch_begin(self, epoch, logs=None):
         """Records starting time for iteration time in seconds"""
         self.epoch_start = time.time()
     
+    @override
     def on_epoch_end(self, epoch, logs=None):
         """Updates plots, progress bars, and text info"""
         # Update progres bars
@@ -322,7 +371,12 @@ class GUICallback(keras.callbacks.Callback):
         self.gui_objs["plot2"].plot(self.test_acc, color="red")
 
         # Update Canvas
-        self.gui_objs["canvas"].draw()
+        self.gui_objs["canvas1"].draw()
+        self.gui_objs["canvas2"].draw()
+        self.gui_objs["canvas3"].draw()
+
+        # Clear out histogram values
+        self.pred_freq = [0, 0, 0]
 
         # Update plot time
         self.gui_objs["plot_time"]["text"] = f"Plot Time: {plot_s - time.time()}s"
@@ -375,7 +429,7 @@ class ModelTrainer():
         # Dense layers & Output
         dense1 = Dense(units=self.params["dense_nodes"], activation="relu")(lstm2)
         dense2 = Dense(units=self.params["dense_nodes"], activation="relu")(dense1)
-        output = Dense(units=NUM_CLASSES)(dense2)
+        output = Dense(units=NUM_CLASSES, activation="softmax")(dense2)
 
         # Create Model
         model = keras.Model(inputs=inputs, outputs=output)
@@ -393,8 +447,12 @@ class ModelTrainer():
     
     def train_model(self, model, data):
         model_checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other Files/")
-        model.compile(optimizer=self.params["optimizer"], metrics=["accuracy"])
-        model.fit(epochs=self.params["epochs"], callbacks=[model_checkpoint_callback])
+        if self.callbacks is not None:
+            model.compile(optimizer=self.params["optimizer"], metrics=["accuracy", self.callbacks.pred_metric])
+            model.fit(epochs=self.params["epochs"], callbacks=[self.callbacks, model_checkpoint_callback])
+        else:
+            model.compile(optimizer=self.params["optimizer"], metrics=["accuracy"])
+            model.fit(epochs=self.params["epochs"], callbacks=[model_checkpoint_callback])
         print("stub")
     
 

@@ -24,6 +24,7 @@ class PreProcessor():
     """Preprocesses the PSGs"""
     
     RECORDING_LEN = 10 # 10 seconds
+    RECORDINGS_PER_MOUSE = 100 # 100 10 sec recordings for every mouse
     ANNOTATIONS = {
         "SLEEP-S0": 0,
         "SLEEP-S2": 1,
@@ -55,19 +56,18 @@ class PreProcessor():
         print("Started Importing Data")
 
         # Find all directories & append data of shape (n_events, n_channels, n_instances) to proc_data
-        raw_data_dir = self.PATH + "01 Raw Data/"
-        os.chdir(raw_data_dir)
+        raw_dir = self.PATH + "01 Raw Data/"
+        os.chdir(raw_dir)
         all_dirs = os.listdir()
-        proc_data = []
-        for directory in tqdm(all_dirs):
+        for count, directory in tqdm(enumerate(all_dirs), desc="Reformatting Data"):
             # Search directory for edf
-            os.chdir(raw_data_dir + str(directory))
-            edf_filename = glob.glob("*EDF.edf")
+            os.chdir(raw_dir + str(directory))
+            filename = glob.glob("*EDF.edf")
 
-            if len(edf_filename) > 0:
+            if len(filename) > 0:
                 # Read edf if found
-                edf_filename = edf_filename[0]
-                edf_dir = raw_data_dir + str(directory) + "/" + edf_filename
+                filename = filename[0]
+                edf_dir = raw_dir + str(directory) + "/" + filename
                 edf = mne.io.read_raw_edf(edf_dir)
                 
                 # Import annotations & remove unnecessary columns
@@ -89,11 +89,12 @@ class PreProcessor():
                 start_time = labels[0][1].split(" ")[1].split(":") # Read first data point
                 start_sec = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + float(start_time[2])
                 start_diff = (start_sec - edf_sec) * sample_rate
-                # Remove data
+                # Remove data & delete unused edf variable
                 edf_array = edf.get_data()[:, int(start_diff):]
+                del edf
                 # Calculate remaining offset and remove samples from the end of the edf list to account for offset
-                remaining_offset = np.size(edf_array, axis=1) - event_samples
-                edf_array = edf_array[:, :-remaining_offset]
+                offset = np.size(edf_array, axis=1) - event_samples
+                edf_array = edf_array[:, :-offset]
 
                 # Don't append data if it's not a 1:1 ratio
                 if int(event_samples) != int(np.size(edf_array, axis=1)):
@@ -108,32 +109,80 @@ class PreProcessor():
                     proc = []
                     for annot in annots:
                         next_ = int(prev + self.RECORDING_LEN * sample_rate)
-                        slice_ = edf_array[prev:next_]
+                        slice_ = edf_array[:, prev:next_]
                         proc.append([slice_, annot])
                         prev = next_
 
                     # Append processed data to proc_data
-                    proc_data.extend(proc)
+                    proc = self.preprocess(proc)
+                    joblib.dump(proc, config.PATH + "01 Raw Data/proc_data_sample_{count}.joblib")
             else:
                 print(f"WARNING: Directory \"{directory}\" Did not contain a valid .edf file")
         
         elapsed = time.time() - start
         print(f"Finished importing data || Elapsed time: {elapsed}s")
-
-        return proc_data
     
-    def preprocess(self, raw_data):
-        """Inputs raw data and outputs preprocessed data"""
-        print("stub")
+    def preprocess(self, semi_proc):
+        """Inputs semi-processed data and outputs preprocessed data"""
+        # Reduce amount of recordings
+        semi_proc = semi_proc[:self.RECORDINGS_PER_MOUSE]
 
-    
+        # Find maximums and minimums of each channel
+        c_bounds = []
+        for c in trange(len(semi_proc[0][0]), desc="Max & Min Per Channel"):
+            c_min = c_max = semi_proc[0][0][c][0]
+            for r in semi_proc:
+                s_min = r[0][c].min()
+                s_max = r[0][c].max()
+                if s_min < c_min:
+                    c_min = s_min
+                elif s_max > c_max:
+                    c_max = s_max
+            c_bounds.append([c_min, c_max])
+        
+        # Normalize Values
+        for r in trange(len(semi_proc), desc="Normalize Vals"): 
+            for c in range(len(semi_proc[r][0])):
+                for val in range(len(semi_proc[r][0][c])):
+                    semi_proc[r][0][c][val] = (semi_proc[r][0][c][val] - c_bounds[c][0]) / (c_bounds[c][1] - c_bounds[c][0])
+
+        """
+        # Too unreliable so not going to use
+        # Try using other methods of denoising, this has proven too inconsistent
+        # Also look into automatically getting our fft n components
+        # Denoises data by using Fast Fourier Transform (This data should by cyclic in nature)
+        remove_threshold = [None, None, None, 0.001, 0.0001, 0.0001, 0.0001, 0.0001, None, None, None, 0.2, None, None, None, 500, 500]
+        for r in trange(len(semi_proc), desc="FFT"):
+            for c in range(len(semi_proc[r][0])):
+                if remove_threshold[c] is not None:
+                    plt.plot(semi_proc[r][0][c])
+                    # Get frequency components of our time series data
+                    n = len(semi_proc[r][0][c])
+                    fft = np.fft.fft(semi_proc[r][0][c])
+                    # Find power spectral density of components (basically the frequency of each frequency)
+                    psd = (fft * np.conj(fft)) / n
+                    # Remove all frequencies that are less prevalent than the threshold
+                    _mask = psd > remove_threshold[c]
+                    fft_new = _mask * fft
+                    # Reconstruct original signal via inverse fourier transform
+                    clean = np.fft.ifft(fft_new).real
+                    # Update semi_proc
+                    semi_proc[r][0][c] = clean
+                    # plot each channel and see what it looks like asnd refine remove_threshold vals
+                    plt.plot(clean)
+                    plt.show()
+                    plt.cla()
+        """
+
+        return semi_proc
+
 if __name__ == "__main__":
     # Instantiate preprocessor obj & import data
     preprocessor = PreProcessor(config.PATH)
-    proc_data = preprocessor.import_data()
+    semi_proc = preprocessor.import_data()
     
     # Save data & time how long it takes
     start = time.time()
-    joblib.dump(proc_data, config.PATH + "01 Raw Data/processed_data.joblib")
+    #joblib.dump(semi_proc, config.PATH + "01 Raw Data/processed_data.joblib")
     elapsed = time.time() - start
     print(f"Finished saving data || Elapsed time: {elapsed}s")
