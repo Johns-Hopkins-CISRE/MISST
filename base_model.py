@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""model.py: Trains the main Multi-Channel CNN-LSTM model"""
+"""base_model.py: Trains the main Multi-Channel CNN-LSTM model"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
@@ -13,11 +13,16 @@ import threading
 import tkinter as tk
 import keras.backend as K
 import tensorflow as tf
+import joblib
+import contextlib
+import socket
 from tkinter import ttk
 from overrides import override
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from preprocessor import PreProcessor
+from abc import ABC, abstractmethod
+from tqdm import tqdm
 from keras.layers import (
     Conv1D,
     MaxPooling1D,
@@ -27,8 +32,11 @@ from keras.layers import (
     Dense
 )
 
-class GUI():
-    """Acts as a model control panel, allowing for rapid manual hyperparameter & architecture tuning"""
+class GenericGUI(ABC):
+    """
+    A general framework for creating a model control panel, allowing 
+    for rapid manual hyperparameter & architecture tuning
+    """
 
     model_is_running = False
     optimizers = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
@@ -148,7 +156,7 @@ class GUI():
         self.dense_i.grid(row=5, column=1)
 
         # Optimizer Multiple Choice
-        optimizer_str = tk.StringVar(value=" ".join(self.optimizers))
+        optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZERS))
         self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
         self.op_mc.grid(row=6, column=0, columnspan=2, pady=20)
 
@@ -213,7 +221,7 @@ class GUI():
         self.filters_i.insert(0, "4")
         self.lstm_i.insert(0, "50")
         self.dense_i.insert(0, "500")
-        self.op_mc.selection_set(self.optimizers.index(DEFAULT_OPTIMIZER), self.optimizers.index(DEFAULT_OPTIMIZER))
+        self.op_mc.selection_set(self.OPTIMIZERS.index(DEFAULT_OPTIMIZER), self.OPTIMIZERS.index(DEFAULT_OPTIMIZER))
     
     def clear_inputs(self):
         """Clear the inputted parameters for training the model"""
@@ -253,7 +261,7 @@ class GUI():
                 "filters": int(self.filters.get()),
                 "lstm_nodes": int(self.lstm.get()),
                 "dense_nodes": int(self.lstm.get()),
-                "optimizer": self.optimizers[self.op_mc.curselection()[0]]
+                "optimizer": self.OPTIMIZERS[self.op_mc.curselection()[0]]
             }
         except ValueError:
             print("WARNING: The inputted parameters were invalid, please double check them. The training will abort.")
@@ -261,21 +269,42 @@ class GUI():
 
         # Initialize the ModelTrainer and GUICallback and train the model
         if valid_params:
-            trainer = ModelTrainer(self.path, params)
-            callback = GUICallback(gui_objs, params)
-            trainer.enable_callbacks(callback) #NOTE: We'll need to make an if statement that runs a different fit statement if callback is undefined
-            model = trainer.create_model()
-            data = trainer.import_data()
-            trainer.train_model(model, data)
+            self.train_model(gui_objs)
         self.finished_training()
+    
+    @abstractmethod
+    def train_model(self, gui_objs, params):
+        """Runs whatever needs to be ran to train the model"""
+        pass
+
+
+class DistributedGUI(GenericGUI):
+    """
+    Subclasses the GenericGUI to include methods necessary for distributed computing.
+    This class specifically references ModelTrainer, which, in the case of a general framework,
+    is undesired, hence why the GUI is split into two classes.
+    """
+
+    @override
+    def __init__(self, path, dist_comp):
+        """If dist_comp = True, distributed computing will be used"""
+        super().__init__(path)
+        self.dist_comp = dist_comp
+
+    @override
+    def _train_model(self, gui_objs, params):
+        trainer = ModelTrainer(self.path, params)
+        trainer.enable_gui(gui_objs)
+        trainer.driver(self.dist_comp)
 
 
 class GUICallback(keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
     
     train_loss = test_loss = train_acc = test_acc = []
-    pred_freq = [0, 0, 0]
-    true_freq = [0, 0, 0]
+    NUM_CLASSES = 3
+    pred_freq = [0] * NUM_CLASSES
+    true_freq = [0] * NUM_CLASSES
     y_true = None
     y_pred = None
 
@@ -308,7 +337,6 @@ class GUICallback(keras.callbacks.Callback):
     def on_train_end(self, logs=None):
         """Delete the y_true and y_pred to clear up memory"""
         del self.y_true, self.y_pred
-        # later, try adding del self.gui_objs and see what that does
 
     @override
     def on_train_batch_end(self, batch, logs=None):
@@ -376,28 +404,128 @@ class GUICallback(keras.callbacks.Callback):
         self.gui_objs["canvas3"].draw()
 
         # Clear out histogram values
-        self.pred_freq = [0, 0, 0]
+        self.pred_freq = [0] * self.NUM_CLASSES
 
         # Update plot time
         self.gui_objs["plot_time"]["text"] = f"Plot Time: {plot_s - time.time()}s"
 
-class ModelTrainer():
+
+class DistributedTrainer(ABC):
+    """A general-purpose framework for distributed training"""
+
+    # Config vars (MUST BE CHANGED PER USER)
+    DEVICE_IPS = {
+        "chief": ["192.168.1.175"],
+        "worker": ["192.168.1.175", "192.168.1.175"] #TODO replace w/ actual device ips
+    }
+    CURRENT_NODE = {"type": "chief", "index": 0}
+    dist_comp = False
+
+    def _is_port_open(self, ip, port):
+        """Tests if 'port' at 'ip' is open by attempting to bind; uses contextlib for Automatic Resouce Management"""
+        with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+            try:
+                s.bind((ip, port))
+            except socket.error:
+                return False
+            return True
+
+    def _generate_config(self):
+        """Generates a tf_config variable for MultiWorkerMirroredStrategy"""
+        # Config vars
+        PORT_START = 10000 # Avoids "Well-Known Ports"
+        PORT_LIM = 50000 # Highest number port to search to
+
+        # Check every IP and find which ports work
+        valid_ports = {node_type: [] for node_type in self.DEVICE_IPS}
+        for node_type in self.DEVICE_IPS:
+            for ip in tqdm(self.DEVICE_IPS[node_type], desc=f"Finding ports for {node_type}"):
+                valid_port = None
+                for port in range(PORT_START, PORT_LIM):
+                    if self._is_port_open(ip, port):
+                        valid_port = port
+                        break
+                if valid_port is None:
+                    raise RuntimeError(f"Could not find a valid port for ip: \"{ip}\".")
+                valid_ports[node_type].append(valid_port)
+
+        # Merge ips and valid ports
+        cluster = {node_type: [] for node_type in self.DEVICE_IPS}
+        for node_type in self.DEVICE_IPS:
+            for index in range(len(self.DEVICE_IPS[node_type])):
+                cluster[node_type].append(f"{self.DEVICE_IPS[node_type][index]}:{valid_ports[node_type][index]}")
+
+        # Initializes TF_CONFIG
+        tf_config = {
+            "cluster": cluster,
+            "task": self.CURRENT_NODE
+        }
+        return tf_config
+
+    def driver(self, dist_comp):
+        """Chooses either distributed training or normal training depending on the input"""
+        if dist_comp:
+            # Enable distributed computing and prepare necessary vars
+            self.dist_comp = True
+            tf_config = self._generate_config()
+            strategy = tf.distribute.MultiWorkerMirroredStrategy()
+            self.strategy = strategy
+            # Run distributed instances
+            with strategy.scope():
+                model = self._create_model()
+                data = self._import_data()
+                self._train_model(model, data)
+        else:
+            self.dist_comp = False
+            model = self._create_model()
+            data = self._import_data()
+            self._train_model(model, data)
+    
+    @abstractmethod
+    def _import_data(self):
+        """Returns a data obj that can be fed directly into '_train_model'"""
+        pass
+    
+    @abstractmethod
+    def _create_model(self):
+        """Returns a Keras.Model instance that can be fed directly into '_train_model'"""
+        pass
+
+    @abstractmethod
+    def _train_model(self, model, data):
+        """
+        Trains the model by running model.fit(). A vanilla custom training loop will
+        not work with distributed training. Any variables used by model.fit MUST 
+        BE DECLARED INSIDE OF THIS SCOPE
+        """
+        pass
+    
+
+class ModelTrainer(DistributedTrainer):
     """Creates and Trains Model"""
     
-    callbacks = None
+    gui_objs = None
 
     def __init__(self, path, params):
         """Initializes class level variables, params is just user inputted values"""
         self.PATH = path
         self.params = params
 
-    def enable_callbacks(self, callback):
-        """Enables callbacks while still giving the option to use it separate of GUI"""
-        self.callbacks = callback
+    def enable_gui(self, gui_objs):
+        """
+        Enables callbacks while still giving the option to train separate of GUI.
+        Only takes in gui_objs instead of GUICallback since all callbacks must be initialized
+        inside 'train_model'
+        """
+        self.gui_objs = gui_objs
 
-    def create_model(self):
-        """Returns a Keras model"""
-        
+    @override
+    def _import_data(self):
+        joblib.load(self.PATH + "01 Raw Data/processed_data.joblib")
+
+    @override
+    def _create_model(self):
+        """Returns a Keras model, uses strategy to determine batch_size"""
         start = time.time()
         print("Started Model Creation")
 
@@ -411,7 +539,11 @@ class ModelTrainer():
         inputs = []
         pool = []
         for _ in range(0, NUM_CHANNELS):
-            inputs.append(keras.Input(batch_input_shape=(self.params["batch_size"], int(RECORDING_LEN * SAMPLE_RATE), 1)))
+            if self.dist_comp:
+                batch_size = int(self.params["batch_size"] * self.strategy.num_replicas_in_sync)
+            else:
+                batch_size = int(self.params["batch_size"])
+            inputs.append(keras.Input(batch_input_shape=(batch_size, int(RECORDING_LEN * SAMPLE_RATE), 1)))
             conv = Conv1D(filters=self.params["filters"], kernel_size=10, activation="relu", padding="same")(inputs[-1])
             pool.append(MaxPooling1D(pool_size=100, padding="same")(conv))
         
@@ -441,32 +573,47 @@ class ModelTrainer():
         print(f"Finished creating model || Elapsed time: {elapsed}s")
 
         return model
-    
-    def import_data(self):
-        print("stub")
-    
-    def train_model(self, model, data):
+
+    @override
+    def _train_model(self, model, data):
+        """
+        Trains the model by running model.fit(). A vanilla custom training loop will
+        not work with distributed training. Any variables used by model.fit must be
+        declared and initialized within this scope
+        """
         model_checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other Files/")
-        if self.callbacks is not None:
+        if self.gui_objs is not None:
+            callback = GUICallback(self.gui_objs, self.params)
             model.compile(optimizer=self.params["optimizer"], metrics=["accuracy", self.callbacks.pred_metric])
-            model.fit(epochs=self.params["epochs"], callbacks=[self.callbacks, model_checkpoint_callback])
+            model.fit(epochs=self.params["epochs"], callbacks=[callback, model_checkpoint_callback])
         else:
             model.compile(optimizer=self.params["optimizer"], metrics=["accuracy"])
             model.fit(epochs=self.params["epochs"], callbacks=[model_checkpoint_callback])
-        print("stub")
     
 
 if __name__ == "__main__":
     """Trains the model on the preprocessor.py data"""
+    params = {
+        "epochs": 100,
+        "batch_size": 4,
+        "filters": 4,
+        "lstm_nodes": 50,
+        "dense_nodes": 500,
+        "optimizers": "adam"
+    }
     
-    GUI(config.PATH) # Starts the GUI Class
-    # trainer = ModelTrainer(config.PATH) # Starts the ModelTrainer w/o GUI
-    # params = {
-    # "epochs": 100
-    # "batch_size": 4
-    # "filters": 4
-    # "lstm_nodes": 50
-    # "dense_nodes": 500
-    # "optimizers": "adam"
-    # }
-    # model = trainer.create_model()
+    # Runs training according to declared training method
+    MODE = "DIST GUI"
+    match MODE:
+        case "PLAIN":
+            trainer = ModelTrainer(config.PATH)
+            trainer.driver(False)
+        case "DIST":
+            trainer = ModelTrainer(config.PATH)
+            trainer.driver(True)
+        case "GUI":
+            DistributedGUI(config.PATH, False)
+        case "DIST GUI":
+            DistributedGUI(config.PATH, True)
+        case other:
+            raise ValueError(f"Variable \"MODE\" is invalid, got val \"{MODE}\"")
