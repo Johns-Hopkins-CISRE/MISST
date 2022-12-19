@@ -1,14 +1,14 @@
 # Mouse PSG
 
-This Python project uses Multivariate CNN-LSTM networks to automate the process of polysomnogram grading for mice. 
+This Python project uses a unique "Multivariate SDCC-BiLSTM" model to automate the process of polysomnogram grading for mice. 
+
+# Multivariate SDCC-BiLSTM
+
+The architecture of the network is a Multivariate SDCC-BiLSTM, which stands for "Multivariate Stacked Dilated Causal Convolutions-Bidirectional Long Short Term Memory." Essentially, this architecture is a combination of traditional LSTM approaches to time-series data, along with a multivariate implementation of WaveNet.
 
 # Training Data
 
-This network was trained on a variety of polysomnograms taken of mice during sleep studies at Hopkins.
-
-# Architecture
-
-The architecture of the network is a Multivariate CNN LSTM, with a modified WaveNet being applied to each input channel.
+This network was trained on a variety of polysomnograms taken of mice during sleep studies at Hopkins
 
 # Dependencies
 
