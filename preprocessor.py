@@ -40,9 +40,8 @@ class PreProcessor():
     MARGIN = 0.01 # Margin used for determining if float is int
 
     # Global Vars
-    mins = None
-    maxs = None
-    valid_dirs = None
+    __mins = None
+    __maxs = None
     __sample_rate = None
 
     def __init__(self, path: str):
@@ -66,7 +65,7 @@ class PreProcessor():
         return sample_rate, num_channels
 
     def import_and_preprocess(self, mode: str) -> None:
-        """Saves edf files"""
+        """Imports and preprocesses all the training data, then saves them as .npz files"""
         # Declare paths
         raw_dir = self.PATH + "01 Raw Data/"
         of_path = self.PATH + "08 Other files/"
@@ -91,7 +90,7 @@ class PreProcessor():
             start += split_list[ind]
         end = start + self.DATASET_SPLIT[mode]
 
-        # Set directories as a class variable
+        # Update directories to only include the ones in it's mode
         valid_dirs = valid_dirs[start:end]
 
         # Traverse through sliced directories
@@ -115,16 +114,16 @@ class PreProcessor():
                 # Load in mins and maxs, and calculate and save if they don't already exist
                 t_d = time.time()
                 os.chdir(of_path)
-                if self.mins is None and self.maxs is None:
+                if self.__mins is None and self.__maxs is None:
                     try:
                         minmax = np.load("minmax.npz")
-                        self.maxs = minmax["maxs"]
-                        self.mins = minmax["mins"]
+                        self.__maxs = minmax["maxs"]
+                        self.__mins = minmax["mins"]
                     except OSError:
                         desc = edf.describe(data_frame=True)
-                        self.maxs = desc.loc[:, "max"].to_numpy()
-                        self.mins = desc.loc[:, "min"].to_numpy()
-                        np.savez("minmax.npz", mins=self.mins, maxs=self.maxs)
+                        self.__maxs = desc.loc[:, "max"].to_numpy()
+                        self.__mins = desc.loc[:, "min"].to_numpy()
+                        np.savez("minmax.npz", mins=self.__mins, maxs=self.__maxs)
                 e_d = time.time() - t_d
                 print(f"Max & Min Read Time: {e_d:.2f}s")
 
@@ -150,7 +149,7 @@ class PreProcessor():
                 rec_samp = self.__sample_rate * self.RECORDING_LEN 
                 event_samples = int(rec_samp * len(labels))
                 offset = np.size(edf_array, axis=1) - event_samples
-                # Account for offset
+                # Align the ends of "labels" and "edf_array"
                 if offset >= 0:
                     # Remove samples from the end of the edf list to account for offset
                     edf_array = edf_array[:, :-offset]
@@ -165,12 +164,11 @@ class PreProcessor():
 
                 # Don't append data if it's not a 1:1 ratio
                 if event_samples != int(np.size(edf_array, axis=1)):
-                    print(
-                        f"WARNING: Directory \"{directory}\" " + 
+                    raise ValueError(
+                        f"Directory \"{directory}\": " + 
                         "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
                         "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt."
                     )
-                    continue
                 
                 # Remove unbalanced data
                 annots, remove = self.__proc_labels(labels)
@@ -186,7 +184,7 @@ class PreProcessor():
                     for ch_num, channel in enumerate(tqdm(sample, leave=False, file=sys.stdout)):
                         channel_norm = []
                         for value in channel:
-                            channel_norm.append((value - self.mins[ch_num]) / (self.maxs[ch_num] - self.mins[ch_num]))
+                            channel_norm.append((value - self.__mins[ch_num]) / (self.__maxs[ch_num] - self.__mins[ch_num]))
                         sample_norm.append(channel_norm)
                     x_norm.append(sample_norm)
                 x_norm = np.array(x_norm)
@@ -206,7 +204,7 @@ class PreProcessor():
                 raise ValueError(f"Directory \"{directory}\" Did not contain a valid .edf file")
     
     def __proc_labels(self, labels):
-        """Balance labels"""
+        """Shuffle labels and removed unbalanced classes"""
         # Remove everything besides annotations, encode, then find frequency of label
         annots = []
         samp_freq = [0] * len(self.ANNOTATIONS)
@@ -248,7 +246,7 @@ class PreProcessor():
         return annots, remove
     
     def __proc_edf(self, edf_array, remove):
-        """Balance edf array; must be executed after __proc_labels()"""
+        """Shuffle edf arrays and remove unbalanced classes; must be executed after __proc_labels()"""
         # Split data into samples
         t_f = time.time()
         prev = 0
@@ -262,7 +260,7 @@ class PreProcessor():
         e_f = time.time() - t_f
         print(f"EDF Sampling: {e_f:.2f}s")
 
-        # Shuffle EDF Array
+        # Shuffle .edf array
         t_g = time.time()
         rng = np.random.default_rng(seed=self.RANDOM_SEED)
         rng.shuffle(x, axis=0)
