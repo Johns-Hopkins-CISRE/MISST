@@ -25,7 +25,7 @@ class GenericGUI(ABC):
     """
 
     model_is_running = False
-    optimizers = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
+    optimizer = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
 
     def __init__(self, path):
         """Creates GUI"""
@@ -129,20 +129,32 @@ class GenericGUI(ABC):
         self.filters_i = tk.Entry(f3, textvariable=self.filters)
         self.filters_i.grid(row=3, column=1)
 
+        conv_label = tk.Label(f3, text="Conv Layers:", font=("Arial", 13))
+        conv_label.grid(row=4, column=0)
+        self.conv = tk.StringVar()
+        self.conv_i = tk.Entry(f3, textvariable=self.conv)
+        self.conv_i.grid(row=4, column=1)
+
+        sdcc_label = tk.Label(f3, text="SDCC Blocks:", font=("Arial", 13))
+        sdcc_label.grid(row=4, column=0)
+        self.sdcc = tk.StringVar()
+        self.sdcc_i = tk.Entry(f3, textvariable=self.sdcc)
+        self.sdcc_i.grid(row=4, column=1)
+
         lstm_label = tk.Label(f3, text="LSTM Nodes:", font=("Arial", 13))
-        lstm_label.grid(row=4, column=0)
+        lstm_label.grid(row=5, column=0)
         self.lstm = tk.StringVar()
         self.lstm_i = tk.Entry(f3, textvariable=self.lstm)
-        self.lstm_i.grid(row=4, column=1)
+        self.lstm_i.grid(row=5, column=1)
 
         dense_label = tk.Label(f3, text="Dense Nodes:", font=("Arial", 13))
-        dense_label.grid(row=5, column=0)
+        dense_label.grid(row=6, column=0)
         self.dense = tk.StringVar()
         self.dense_i = tk.Entry(f3, textvariable=self.dense)
-        self.dense_i.grid(row=5, column=1)
+        self.dense_i.grid(row=6, column=1)
 
         # Optimizer Multiple Choice
-        optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZERS))
+        optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZER))
         self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
         self.op_mc.grid(row=6, column=0, columnspan=2, pady=20)
 
@@ -205,15 +217,19 @@ class GenericGUI(ABC):
         self.epochs_i.insert(0, "100")
         self.batches_i.insert(0, "4")
         self.filters_i.insert(0, "4")
+        self.conv_i.insert(0, "6")
+        self.sdcc_i.insert(0, "1")
         self.lstm_i.insert(0, "50")
         self.dense_i.insert(0, "500")
-        self.op_mc.selection_set(self.OPTIMIZERS.index(DEFAULT_OPTIMIZER), self.OPTIMIZERS.index(DEFAULT_OPTIMIZER))
+        self.op_mc.selection_set(self.OPTIMIZER.index(DEFAULT_OPTIMIZER), self.OPTIMIZER.index(DEFAULT_OPTIMIZER))
     
     def clear_inputs(self):
         """Clear the inputted parameters for training the model"""
         self.epochs_i.delete(0, tk.END)
         self.batches_i.delete(0, tk.END)
         self.filters_i.delete(0, tk.END)
+        self.conv_i.delete(0, tk.END)
+        self.sdcc_i.delete(0, tk.END)
         self.lstm_i.delete(0, tk.END)
         self.dense_i.delete(0, tk.END)
         self.op_mc.selection_clear(0, tk.END)
@@ -245,9 +261,11 @@ class GenericGUI(ABC):
                 "epochs": int(self.epochs.get()),
                 "batch_size": int(self.batches.get()),
                 "filters": int(self.filters.get()),
+                "conv_layers": int(self.conv.get()),
+                "sdcc_blocks": int(self.sdcc.get()),
                 "lstm_nodes": int(self.lstm.get()),
                 "dense_nodes": int(self.lstm.get()),
-                "optimizer": self.OPTIMIZERS[self.op_mc.curselection()[0]]
+                "optimizer": self.OPTIMIZER[self.op_mc.curselection()[0]]
             }
         except ValueError:
             print("WARNING: The inputted parameters were invalid, please double check them. The training will abort.")
@@ -255,11 +273,11 @@ class GenericGUI(ABC):
 
         # Initialize the ModelTrainer and GUICallback and train the model
         if valid_params:
-            self.train_model(gui_objs)
+            self.train_model(gui_objs, params)
         self.finished_training()
     
     @abstractmethod
-    def train_model(self, gui_objs, params):
+    def _train_model(self, gui_objs, params):
         """Runs whatever needs to be ran to train the model"""
         pass
 

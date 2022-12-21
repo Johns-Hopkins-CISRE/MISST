@@ -68,7 +68,11 @@ class DistributedTrainer(ABC):
         return tf_config
 
     def driver(self, dist_comp):
-        """Chooses either distributed training or normal training depending on the input"""
+        """
+        Chooses either distributed training or normal training depending on the input. Interally handling 
+        all the training steps allows for the privatization of all training methods, and keeps the difference 
+        between distributed and normal execution out of the eyes of the user.
+        """
         if dist_comp:
             # Enable distributed computing and prepare necessary vars
             self.dist_comp = True

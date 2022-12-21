@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""preprocessor.py: Imports PSG .edf & hypnogram, exports a .csv dataset"""
+"""preprocessor.py: Imports PSG .edf & hypnogram, exports 3 directories of .npz files"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
@@ -14,13 +14,12 @@ import time
 import mne
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 from typing import Tuple
 from tqdm import tqdm
 
 
 class PreProcessor():
-    """Peforms the actual preprocessing operations"""
+    """Handles preprocessing of raw polysomnogram data"""
     
     # Configurable Constants
     RECORDING_LEN = 10 # 10 seconds
@@ -53,8 +52,7 @@ class PreProcessor():
             return mne.io.read_raw_edf(self.PATH + "01 Raw Data/1/BASAL FEMALE B6 280 20211019 LJK - EDF.edf")
         except FileNotFoundError:
             raise FileNotFoundError(
-                "The example edf could not be found," +
-                "try checking the 01 Raw Data directory structure."
+                "The example edf could not be found, try checking the 01 Raw Data directory structure."
             )
 
     def get_edf_info(self, edf: mne.io.BaseRaw) -> Tuple[float, int]:
