@@ -9,8 +9,10 @@ __email__ = "hudsonliu0@gmail.com"
 import config
 import os
 import sys
+import shutil
 import glob
 import time
+import random
 import mne
 import pandas as pd
 import numpy as np
@@ -62,45 +64,25 @@ class PreProcessor():
         num_channels = len(edf.info["ch_names"])
         return sample_rate, num_channels
 
-    def import_and_preprocess(self, mode: str) -> None:
+    def import_and_preprocess(self) -> None:
         """Imports and preprocesses all the training data, then saves them as .npz files"""
-        # Declare paths
-        raw_dir = self.PATH + "01 Raw Data/"
-        of_path = self.PATH + "08 Other files/"
-
-        # Search all directories to find number of valid directories
-        os.chdir(raw_dir)
+        # Get all dirs
+        os.chdir(self.PATH + "01 Raw Data/")
         all_dirs = os.listdir()
-        np.random.default_rng(seed=self.RANDOM_SEED).shuffle(all_dirs)
-        valid_dirs = []
-        for directory in tqdm(all_dirs, desc="Searching for Valid Directories", file=sys.stdout):
-            os.chdir(raw_dir + str(directory))
-            filename = glob.glob("*EDF.edf")
-            if len(filename) > 0:
-                valid_dirs.append(directory)
-        
-        # Get index of selected mode and generate start and end vals for the slice
-        assert sum(self.DATASET_SPLIT.values()) == len(valid_dirs)
-        mode_ind = [ind for ind, key in enumerate(self.DATASET_SPLIT) if key == mode][0]
-        split_list = [self.DATASET_SPLIT[key] for key in self.DATASET_SPLIT]
-        start = 0
-        for ind in range(mode_ind):
-            start += split_list[ind]
-        end = start + self.DATASET_SPLIT[mode]
 
-        # Update directories to only include the ones in it's mode
-        valid_dirs = valid_dirs[start:end]
+        # Keep mne from outputting unnecessary log data
+        mne.set_log_level("error")
 
         # Traverse through sliced directories
-        for directory in tqdm(valid_dirs, desc=f"Preprocessing {mode} Data", file=sys.stdout):
+        for directory in tqdm(all_dirs, desc=f"Preprocessing All Data", file=sys.stdout):
             # Search directory for edf
-            os.chdir(raw_dir + str(directory))
+            os.chdir(self.PATH + "01 Raw Data/" + str(directory))
             filename = glob.glob("*EDF.edf")
 
             if len(filename) > 0:
                 # Read edf if found
                 filename = filename[0]
-                edf_dir = raw_dir + str(directory) + "/" + filename
+                edf_dir = self.PATH + "01 Raw Data/" + str(directory) + "/" + filename
                 edf = mne.io.read_raw_edf(edf_dir)
 
                 # Import annotations & remove unnecessary columns
@@ -111,7 +93,7 @@ class PreProcessor():
 
                 # Load in mins and maxs, and calculate and save if they don't already exist
                 t_d = time.time()
-                os.chdir(of_path)
+                os.chdir(self.PATH + "08 Other files/")
                 if self.__mins is None and self.__maxs is None:
                     try:
                         minmax = np.load("minmax.npz")
@@ -176,30 +158,19 @@ class PreProcessor():
                 assert len(x) == len(annots)
 
                 # Normalize data
-                x_norm = []
-                for sample in tqdm(x, desc="Normalize Values", file=sys.stdout):
-                    sample_norm = []
-                    for ch_num, channel in enumerate(tqdm(sample, leave=False, file=sys.stdout)):
-                        channel_norm = []
-                        for value in channel:
-                            channel_norm.append((value - self.__mins[ch_num]) / (self.__maxs[ch_num] - self.__mins[ch_num]))
-                        sample_norm.append(channel_norm)
-                    x_norm.append(sample_norm)
-                x_norm = np.array(x_norm)
+                x_norm = self.__normalize(x)
 
                 # Create folder and save data
                 t_j = time.time()
-                newpath = of_path + f"{mode}/"
-                if not os.path.exists(newpath):
-                    os.makedirs(newpath)
+                newpath = self.PATH + "08 Other files/Processed/"
+                self.__use_dir(newpath)
                 os.chdir(newpath)
                 np.savez(f"{directory}.npz", x_norm=x_norm, annots=annots, allow_pickle=False)
                 e_j = time.time() - t_j
                 print(f"Save preprocessed data: {e_j:.2f}s")
-            
-            # The set_dirs function is supposed to catch all empty directories
+            # Just move onto the next directory
             else:    
-                raise ValueError(f"Directory \"{directory}\" Did not contain a valid .edf file")
+                print(f"Warning: Directory \"{directory}\" Did not contain a valid .edf file")
     
     def __proc_labels(self, labels):
         """Shuffle labels and removed unbalanced classes"""
@@ -273,11 +244,137 @@ class PreProcessor():
 
         # Return balanced array
         return x
+
+    def __normalize(self, x):
+        """Normalizes data"""
+        x_norm = []
+        for sample in tqdm(x, desc="Normalize Values", file=sys.stdout):
+            sample_norm = []
+            for ch_num, channel in enumerate(tqdm(sample, leave=False, file=sys.stdout)):
+                channel_norm = []
+                for value in channel:
+                    channel_norm.append((value - self.__mins[ch_num]) / (self.__maxs[ch_num] - self.__mins[ch_num]))
+                sample_norm.append(channel_norm)
+            x_norm.append(sample_norm)
+        return np.array(x_norm)
         
+    def regroup(self):
+        """Regroups the preprocessed data"""
+        # Number of recordings per group (remainding recordings are cropped out)
+        GROUP_LEN = 100
+
+        # Create new folder
+        newpath = self.PATH + "08 Other files/Regrouped/"
+        self.__use_dir(newpath)
+
+        # Create and save recordings
+        os.chdir(self.PATH + "08 Other files/Processed/")
+        all_files = os.listdir()
+        x = []
+        y = []
+        counter = 0
+        for rec_name in tqdm(all_files, desc="Regrouping Recordings"):
+            # Add to data queue
+            os.chdir(self.PATH + "08 Other files/Processed/")
+            rec = np.load(rec_name)
+            x.extend(rec["x_norm"])
+            y.extend(rec["annots"])
+            # Group and save elements of x and y
+            while GROUP_LEN <= len(x):
+                # Slice groups from data queue
+                x_group = x[:GROUP_LEN]
+                y_group = y[:GROUP_LEN]
+                # Save groups
+                os.chdir(self.PATH + "08 Other files/Regrouped/")
+                np.savez(f"{counter}.npz", x=x_group, y=y_group, allow_pickle=False)
+                counter += 1
+                # Delete group from queue
+                x = x[GROUP_LEN:]
+                y = y[GROUP_LEN:]
+        
+        # Non-Grouped Remaining Data
+        print(f"Leftover Data: {len(x)}")
+
+    def group_shuffle(self):
+        """Shuffles the data group-by-group"""
+        # Declare paths & list files
+        src = self.PATH + "08 Other files/Regrouped/"
+        dest = self.PATH + "08 Other files/Shuffled/"
+        self.__use_dir(dest)
+        os.chdir(src)
+        num_passes = len(os.listdir()) - 1
+
+        # Defines groups: a & b are groups
+        for _ in tqdm(range(num_passes), desc="Shuffle Pass", file=sys.stdout):
+            # Set directory
+            os.chdir(src)
+            all_files = os.listdir()
+            all_files.sort() # Ensure same order every iteration
+            rng = np.random.default_rng(seed=self.RANDOM_SEED)
+            a_load = np.load(src + all_files[0])
+            a_x, a_y = a_load["x"], a_load["y"]
+            for group_num, group in enumerate(all_files[1:]):
+                # Define new groups
+                b_load = np.load(src + group)
+                b_x, b_y = b_load["x"], b_load["y"]
+                # Merge, shuffle, split, save
+                merged_x, merged_y = np.concatenate((a_x, b_x), axis=0), np.concatenate((a_y, b_y), axis=0)
+                rng.shuffle(merged_x)
+                rng.shuffle(merged_y)
+                full_x, full_y = np.split(merged_x, 2), np.split(merged_y, 2)
+                half_x, half_y = full_x[0], full_y[0]
+                a_x, a_y = full_x[1], full_y[1]
+                os.chdir(dest)
+                np.savez(f"{group_num}.npz", x=half_x, y=half_y)
+                # If at end of list, save "a" too
+                if group_num == len(all_files[1:]) - 1:
+                    np.savez(f"{group_num + 1}.npz", x=a_x, y=a_y)
+            # Use previous output as current input
+            src = dest
+
+    def split_dataset(self):
+        """Splits the dataset into a train, test, and val set"""
+        # Declare paths
+        src = self.PATH + "08 Other files/Shuffled/"
+        dest = self.PATH + "08 Other files/Split/"
+
+        # Create random list of all files to split
+        os.chdir(src)
+        all_files = os.listdir()
+        random.seed(self.RANDOM_SEED)
+        random.shuffle(all_files)
+
+        # Create new folder
+        modes = list(self.DATASET_SPLIT.keys())
+        for mode in modes:
+            self.__use_dir(dest + mode + "/")
+        
+        # Split files as according to dataset_split
+        start = 0
+        for mode_name, val in tqdm(self.DATASET_SPLIT.items(), desc="Split Dataset"):
+            ratio = val / sum(self.DATASET_SPLIT.values())
+            group_len = int(len(all_files) * ratio) # Does floor so that it'll never run dry of indexes
+            file_slice = all_files[start:start + group_len]
+            start += group_len
+            for file in file_slice:
+                shutil.copy(f"{src}{file}", f"{dest}{mode_name}/{file}")
+    
+    def __use_dir(self, newpath: str) -> None:
+        """Creates or clears an input path"""
+        if not os.path.exists(newpath):
+            os.makedirs(newpath)
+        else:
+            files = glob.glob(newpath + "*")
+            for f in files:
+                os.remove(f)
+
 
 if __name__ == "__main__":
     # Import, preprocess, and save the train, test, and validation sets
     preproc = PreProcessor(config.PATH)
-    preproc.import_and_preprocess("TRAIN")
-    preproc.import_and_preprocess("TEST")
-    preproc.import_and_preprocess("VAL")
+
+    # Each of these methods can be done completely asynchronously from the others
+    preproc.import_and_preprocess()
+    preproc.regroup()
+    preproc.group_shuffle()
+    preproc.split_dataset()

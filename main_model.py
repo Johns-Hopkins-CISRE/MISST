@@ -9,9 +9,11 @@ __email__ = "hudsonliu0@gmail.com"
 import config
 import time
 import keras
+import random
+import os
+import datetime
 import keras.backend as K
 import numpy as np
-import os
 from overrides import override
 from keras.layers import (
     Conv1D,
@@ -62,35 +64,42 @@ class DataGenerator(keras.utils.Sequence):
         """Initialize global vars"""
         self.PATH = path
         self.BATCH_SIZE = batch_size
+        self.MODE = mode
 
-        # Change cwd
-        os.chdir(f"{path}/08 Other files/{mode}/")
+        # Find all files
+        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
+        self.all_recs = os.listdir()
+        random.shuffle(self.all_recs)
+
+        # Create rng
+        self.rng = np.random.default_rng(seed=952)
     
     @override
     def __len__(self):
         """Returns the number of batches in one epoch"""
-        # Find all files
-        all_recs = os.listdir()
+        # Change cwd
+        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
 
         # Iterate through recordings and sums length of each one
         total_len = 0
-        for filename in all_recs:
+        for filename in self.all_recs:
             new_rec = np.load(filename)
             segments = new_rec["annots"].shape[0]
             total_len += segments
         
         # Find floor of total segments over num segments per batch
-        return total_len // self.BATCH_SIZE
+        return (total_len // self.BATCH_SIZE) - 1
     
     @override
     def __getitem__(self, idx):
         """Receives batch num and returns batch"""
-        # Find all files
-        all_recs = os.listdir()
+        # Change cwd
+        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
 
         # Check if new data needs to be loaded
         if self.BATCH_SIZE > len(self.segments):
-            filename = all_recs[self.cur_rec]
+            # Updates segments and annots
+            filename = self.all_recs[self.cur_rec]
             new_rec = np.load(filename)
             x = new_rec["x_norm"]
             y = new_rec["annots"]
@@ -136,7 +145,7 @@ class ModelTrainer(DistributedTrainer):
         self.gui_objs = gui_objs
 
     def __convert_optimizer(self, optimizer, learning_rate):
-        """Creates an optimizer object for an optimizer string"""
+        """Returns the corresponding object for a given optimizer name"""
         match optimizer:
             case "sgd":
                 return keras.optimizers.SGD(learning_rate=learning_rate)
@@ -240,7 +249,14 @@ class ModelTrainer(DistributedTrainer):
         val_gen = data[1]
     
         # Declare vars for parameters of model.fit
-        model_checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other Files/")
+        model_checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other files/Model_Checkpoints")
+        # Create tensorboard callback
+        tensorboard_dir = self.PATH + "08 Other files/TensorBoard/"
+        if not os.path.exists(tensorboard_dir):
+            os.mkdir(tensorboard_dir)
+        log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+        # Set optimizer
         optimizer = self.__convert_optimizer(self.params["optimizer"], 1e-3)
 
         # Run training w/ or w/o GUI
@@ -248,20 +264,20 @@ class ModelTrainer(DistributedTrainer):
             gui_callback = GUICallback(self.gui_objs, self.params)
             model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
                 metrics=["accuracy", self.callbacks.pred_metric])
-            model.fit(x=train_gen, validation_data=(val_gen), 
-                epochs=self.params["epochs"], callbacks=[gui_callback, model_checkpoint_callback])
+            model.fit(x=train_gen, validation_data=(val_gen), epochs=self.params["epochs"], 
+                callbacks=[gui_callback, model_checkpoint_callback, tensorboard_callback])
         else:
             model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
                 metrics=["accuracy"])
-            model.fit(x=train_gen, validation_data=(val_gen), 
-                epochs=self.params["epochs"], callbacks=[model_checkpoint_callback])
+            model.fit(x=train_gen, validation_data=(val_gen), epochs=self.params["epochs"], 
+                callbacks=[model_checkpoint_callback, tensorboard_callback])
     
 
 if __name__ == "__main__":
     """Trains the model on the preprocessor.py data"""
     params = {
-        "epochs": 100,
-        "batch_size": 4,
+        "epochs": 10,
+        "batch_size": 16,
         "filters": 10,
         "conv_layers": 6,
         "sdcc_blocks": 1,
