@@ -104,11 +104,8 @@ class PreProcessor():
                         self.__mins = desc.loc[:, "min"].to_numpy()
                         np.savez("minmax.npz", mins=self.__mins, maxs=self.__maxs)
 
-                # Downsample edf and assert that sample_rate is an int within margin of "MARGIN"
-                self.__sample_rate = edf.info["sfreq"] / self.DOWNSAMPLING_RATE
-                assert abs(self.__sample_rate - round(self.__sample_rate)) < self.MARGIN
-                self.__sample_rate = int(self.__sample_rate)
-                edf = edf.resample(sfreq=self.__sample_rate, npad='auto')
+                # Temporary sample rate
+                self.__sample_rate = edf.info["sfreq"]
 
                 # Find difference between start times for annotations and PSG
                 edf_start = edf.info["meas_date"]
@@ -147,6 +144,11 @@ class PreProcessor():
                 # Remove unbalanced data
                 annots, remove = self.__proc_labels(labels)
                 x = self.__proc_edf(edf_array, remove)
+
+                # Downsample edf; sample rate is updated for compatibility w/ other functions
+                self.__sample_rate /= self.DOWNSAMPLING_RATE
+                assert abs(self.__sample_rate - round(self.__sample_rate)) < self.MARGIN
+                x = x[:, :, ::self.DOWNSAMPLING_RATE]
 
                 # Ensure balancing removal and downsampling worked correctly
                 assert len(x) == len(annots)
@@ -201,7 +203,7 @@ class PreProcessor():
         # Split data into samples
         prev = 0
         x = []
-        rec_samp = self.RECORDING_LEN * self.__sample_rate
+        rec_samp = int(self.RECORDING_LEN * self.__sample_rate)
         for next_ in range(rec_samp, edf_array.shape[1] + rec_samp, rec_samp):
             slice_ = edf_array[:, prev:next_]
             x.append(slice_)
@@ -223,7 +225,7 @@ class PreProcessor():
         x_norm = []
         for sample in tqdm(x, desc="Normalize Values", leave=False, file=sys.stdout):
             sample_norm = []
-            for ch_num, channel in enumerate(tqdm(sample, leave=False, file=sys.stdout)):
+            for ch_num, channel in enumerate(sample):
                 channel_norm = []
                 for value in channel:
                     channel_norm.append((value - self.__mins[ch_num]) / (self.__maxs[ch_num] - self.__mins[ch_num]))
