@@ -39,8 +39,8 @@ class DistributedGUI(GenericGUI):
     @override
     def __init__(self, path, dist_comp):
         """If dist_comp = True, distributed computing will be used"""
-        super().__init__(path)
         self.dist_comp = dist_comp
+        super().__init__(path)
 
     @override
     def _train_model(self, gui_objs, params):
@@ -56,8 +56,8 @@ class DataGenerator(keras.utils.Sequence):
     cur_rec = 0 
     
     # Create list of all loaded samples
-    segments = []
-    annots = []
+    x = []
+    y = []
 
     @override
     def __init__(self, path, batch_size, mode):
@@ -67,25 +67,22 @@ class DataGenerator(keras.utils.Sequence):
         self.MODE = mode
 
         # Find all files
-        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
+        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
         self.all_recs = os.listdir()
         random.shuffle(self.all_recs)
-
-        # Create rng
-        self.rng = np.random.default_rng(seed=952)
     
     @override
     def __len__(self):
         """Returns the number of batches in one epoch"""
         # Change cwd
-        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
+        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
 
         # Iterate through recordings and sums length of each one
         total_len = 0
         for filename in self.all_recs:
             new_rec = np.load(filename)
-            segments = new_rec["annots"].shape[0]
-            total_len += segments
+            x = new_rec["y"].shape[0]
+            total_len += x
         
         # Find floor of total segments over num segments per batch
         return (total_len // self.BATCH_SIZE) - 1
@@ -94,36 +91,35 @@ class DataGenerator(keras.utils.Sequence):
     def __getitem__(self, idx):
         """Receives batch num and returns batch"""
         # Change cwd
-        os.chdir(f"{self.PATH}/08 Other files/{self.MODE}/")
+        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
 
         # Check if new data needs to be loaded
-        if self.BATCH_SIZE > len(self.segments):
-            # Updates segments and annots
+        if self.BATCH_SIZE > len(self.x):
+            # Updates x and y
             filename = self.all_recs[self.cur_rec]
             new_rec = np.load(filename)
-            x = new_rec["x_norm"]
-            y = new_rec["annots"]
-            self.segments.extend(x)
-            self.annots.extend(y)
+            x_group, y_group = new_rec["x"], new_rec["y"]
+            self.x.extend(x_group)
+            self.y.extend(y_group)
             self.cur_rec += 1
 
         # Obtain data slice to return
-        slice_seg = np.transpose(np.array(self.segments[:self.BATCH_SIZE])[:, :, :, np.newaxis], axes=(1, 0, 2, 3))
-        slice_seg = [i for i in slice_seg] # Convert to list
-        slice_annots = np.array(self.annots[:self.BATCH_SIZE])
+        slice_x = np.transpose(np.array(self.x[:self.BATCH_SIZE])[:, :, :, np.newaxis], axes=(1, 0, 2, 3))[:5] #TODO REMOVE[:5]
+        slice_x = [i for i in slice_x] # Convert to list
+        slice_y = np.array(self.y[:self.BATCH_SIZE])
 
         # Dispose of old data (start will always be zero)
-        self.segments = self.segments[self.BATCH_SIZE:]
-        self.annots = self.annots[self.BATCH_SIZE:]
+        self.x = self.x[self.BATCH_SIZE:]
+        self.y = self.y[self.BATCH_SIZE:]
 
-        return slice_seg, slice_annots
+        return slice_x, slice_y
 
     @override
     def on_epoch_end(self):
         """Reset all class variables"""
         self.cur_rec = 0 
-        self.segments = []
-        self.annots = []
+        self.x = []
+        self.y = []
             
 
 class ModelTrainer(DistributedTrainer):
@@ -196,7 +192,7 @@ class ModelTrainer(DistributedTrainer):
         # Defining CNN inputs & layers (Multivariate implementation of WaveNet)
         inputs = []
         convs = []
-        for _ in range(NUM_CHANNELS):
+        for _ in range(NUM_CHANNELS): #TODO CHANGE BACK TO NUM CHANNELS
             # Create new input and append it to list
             inputs.append(keras.Input(batch_input_shape=(batch_size, int(RECORDING_LEN * SAMPLE_RATE), 1)))
             # Create new conv layers based on dilations
@@ -263,7 +259,7 @@ class ModelTrainer(DistributedTrainer):
         if self.gui_objs is not None:
             gui_callback = GUICallback(self.gui_objs, self.params)
             model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
-                metrics=["accuracy", self.callbacks.pred_metric])
+                metrics=["accuracy", gui_callback.pred_metric])
             model.fit(x=train_gen, validation_data=(val_gen), epochs=self.params["epochs"], 
                 callbacks=[gui_callback, model_checkpoint_callback, tensorboard_callback])
         else:
@@ -277,11 +273,11 @@ if __name__ == "__main__":
     """Trains the model on the preprocessor.py data"""
     params = {
         "epochs": 10,
-        "batch_size": 16,
+        "batch_size": 32,
         "filters": 10,
-        "conv_layers": 6,
+        "conv_layers": 3,
         "sdcc_blocks": 1,
-        "lstm_nodes": 50,
+        "lstm_nodes": 100,
         "dense_nodes": 500,
         "optimizer": "adam"
     }

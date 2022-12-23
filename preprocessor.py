@@ -70,7 +70,7 @@ class PreProcessor():
         os.chdir(self.PATH + "01 Raw Data/")
         all_dirs = os.listdir()
 
-        # Keep mne from outputting unnecessary log data
+        # Keep MNE from outputting unnecessary log data
         mne.set_log_level("error")
 
         # Traverse through sliced directories
@@ -92,7 +92,6 @@ class PreProcessor():
                 labels = df.to_numpy()
 
                 # Load in mins and maxs, and calculate and save if they don't already exist
-                t_d = time.time()
                 os.chdir(self.PATH + "08 Other files/")
                 if self.__mins is None and self.__maxs is None:
                     try:
@@ -104,17 +103,12 @@ class PreProcessor():
                         self.__maxs = desc.loc[:, "max"].to_numpy()
                         self.__mins = desc.loc[:, "min"].to_numpy()
                         np.savez("minmax.npz", mins=self.__mins, maxs=self.__maxs)
-                e_d = time.time() - t_d
-                print(f"Max & Min Read Time: {e_d:.2f}s")
 
                 # Downsample edf and assert that sample_rate is an int within margin of "MARGIN"
-                t_e = time.time()
                 self.__sample_rate = edf.info["sfreq"] / self.DOWNSAMPLING_RATE
                 assert abs(self.__sample_rate - round(self.__sample_rate)) < self.MARGIN
                 self.__sample_rate = int(self.__sample_rate)
                 edf = edf.resample(sfreq=self.__sample_rate, npad='auto')
-                e_e = time.time() - t_e
-                print(f"Downsampling Elapsed Time: {e_e:.2f}s")
 
                 # Find difference between start times for annotations and PSG
                 edf_start = edf.info["meas_date"]
@@ -161,13 +155,10 @@ class PreProcessor():
                 x_norm = self.__normalize(x)
 
                 # Create folder and save data
-                t_j = time.time()
                 newpath = self.PATH + "08 Other files/Processed/"
-                self.__use_dir(newpath)
+                self.__use_dir(newpath, delete=False)
                 os.chdir(newpath)
                 np.savez(f"{directory}.npz", x_norm=x_norm, annots=annots, allow_pickle=False)
-                e_j = time.time() - t_j
-                print(f"Save preprocessed data: {e_j:.2f}s")
             # Just move onto the next directory
             else:    
                 print(f"Warning: Directory \"{directory}\" Did not contain a valid .edf file")
@@ -184,32 +175,23 @@ class PreProcessor():
         annots = np.array(annots)
 
         # Scramble annots
-        t_b = time.time()
         rng = np.random.default_rng(seed=self.RANDOM_SEED)
         rng.shuffle(annots)
-        e_b = time.time() - t_b
-        print(f"Shuffle Annotations: {e_b:.2f}s")
 
         # Calculate how many samples must be removed from each category
         min_freq = np.argmin(samp_freq)
         diff = [freq - samp_freq[min_freq] for freq in samp_freq]
 
         # Find all unbalanced annotations
-        t_i = time.time()
         remove = []
         for index, category in enumerate(annots):
             for diff_category, freq in enumerate(diff):
                 if category == diff_category and freq > 0:
                     diff[diff_category] -= 1
                     remove.append(index)
-        e_i = time.time() - t_i
-        print(f"Search for Unbalanced Indexes: {e_i:.2f}s")
         
         # Remove unbalanced annotations
-        t_c = time.time()
         annots = np.delete(annots, remove, axis=0)
-        e_c = time.time() - t_c
-        print(f"Annotation Removal Time: {e_c:.2f}s")
         
         # Return modified annots and remove indexes for __proc_edf()
         return annots, remove
@@ -217,7 +199,6 @@ class PreProcessor():
     def __proc_edf(self, edf_array, remove):
         """Shuffle edf arrays and remove unbalanced classes; must be executed after __proc_labels()"""
         # Split data into samples
-        t_f = time.time()
         prev = 0
         x = []
         rec_samp = self.RECORDING_LEN * self.__sample_rate
@@ -226,21 +207,13 @@ class PreProcessor():
             x.append(slice_)
             prev = next_
         x = np.array(x)
-        e_f = time.time() - t_f
-        print(f"EDF Sampling: {e_f:.2f}s")
 
         # Shuffle .edf array
-        t_g = time.time()
         rng = np.random.default_rng(seed=self.RANDOM_SEED)
         rng.shuffle(x, axis=0)
-        e_g = time.time() - t_g
-        print(f"Shuffle EDFs: {e_g:.2f}s")
         
         # Remove unbalanced samples
-        t_h = time.time()
         x = np.delete(x, remove, axis=0)
-        e_h = time.time() - t_h
-        print(f"EDF Removal Time: {e_h:.2f}s")
 
         # Return balanced array
         return x
@@ -248,7 +221,7 @@ class PreProcessor():
     def __normalize(self, x):
         """Normalizes data"""
         x_norm = []
-        for sample in tqdm(x, desc="Normalize Values", file=sys.stdout):
+        for sample in tqdm(x, desc="Normalize Values", leave=False, file=sys.stdout):
             sample_norm = []
             for ch_num, channel in enumerate(tqdm(sample, leave=False, file=sys.stdout)):
                 channel_norm = []
@@ -359,11 +332,11 @@ class PreProcessor():
             for file in file_slice:
                 shutil.copy(f"{src}{file}", f"{dest}{mode_name}/{file}")
     
-    def __use_dir(self, newpath: str) -> None:
+    def __use_dir(self, newpath: str, delete=True) -> None:
         """Creates or clears an input path"""
         if not os.path.exists(newpath):
             os.makedirs(newpath)
-        else:
+        elif delete:
             files = glob.glob(newpath + "*")
             for f in files:
                 os.remove(f)
@@ -373,7 +346,7 @@ if __name__ == "__main__":
     # Import, preprocess, and save the train, test, and validation sets
     preproc = PreProcessor(config.PATH)
 
-    # Each of these methods can be done completely asynchronously from the others
+    # Each method can be done asynchronously (as long as they're executed in order)
     preproc.import_and_preprocess()
     preproc.regroup()
     preproc.group_shuffle()

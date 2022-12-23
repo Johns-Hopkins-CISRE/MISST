@@ -25,7 +25,7 @@ class GenericGUI(ABC):
     """
 
     model_is_running = False
-    optimizer = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
+    OPTIMIZER = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
 
     def __init__(self, path):
         """Creates GUI"""
@@ -156,14 +156,14 @@ class GenericGUI(ABC):
         # Optimizer Multiple Choice
         optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZER))
         self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
-        self.op_mc.grid(row=6, column=0, columnspan=2, pady=20)
+        self.op_mc.grid(row=7, column=0, columnspan=2, pady=20)
 
         # Load Default Best Inputs
         buttonborder1 = tk.Frame(f3,
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder1.grid(row=7, column=0, columnspan=2, pady=(0, 20))
+        buttonborder1.grid(row=8, column=0, columnspan=2, pady=(0, 20))
         self.ld_button = tk.Button(
             buttonborder1, text="Load Defaults", command = self.load_defaults,
             width=15, height=1, font=("Arial", 15)
@@ -175,7 +175,7 @@ class GenericGUI(ABC):
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder2.grid(row=8, column=0, columnspan=2)
+        buttonborder2.grid(row=9, column=0, columnspan=2)
         self.ci_button = tk.Button(
             buttonborder2, text="Clear Inputs", command = self.clear_inputs,
             width=15, height=1, font=("Arial", 15)
@@ -273,7 +273,7 @@ class GenericGUI(ABC):
 
         # Initialize the ModelTrainer and GUICallback and train the model
         if valid_params:
-            self.train_model(gui_objs, params)
+            self._train_model(gui_objs, params)
         self.finished_training()
     
     @abstractmethod
@@ -282,7 +282,7 @@ class GenericGUI(ABC):
         pass
 
 
-class GUICallback(keras.callbacks.Callback):
+class GUICallback(tf.keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
     
     train_loss = test_loss = train_acc = test_acc = []
