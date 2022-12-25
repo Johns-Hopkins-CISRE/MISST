@@ -61,7 +61,7 @@ class PreProcessor():
         """For a given edf, returns the sample rate and number of channels"""
         sample_rate = edf.info["sfreq"] / self.DOWNSAMPLING_RATE
         assert abs(sample_rate - round(sample_rate)) < self.MARGIN
-        num_channels = len(edf.info["ch_names"])
+        num_channels = len(edf.ch_names) - 1 # minus 1 because of removal of Raw Score
         return sample_rate, num_channels
 
     def import_and_preprocess(self) -> None:
@@ -115,6 +115,14 @@ class PreProcessor():
                 start_diff = (start_sec - edf_sec) * self.__sample_rate
                 # Remove data & delete unused edf variable
                 edf_array = edf.get_data()[:, int(start_diff):]
+                try:
+                    score_channel = edf.ch_names.index("Raw Score")
+                    edf_array = np.delete(edf_array, score_channel, axis=0)
+                except ValueError:
+                    print(
+                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
+                        "(no \"Raw Score\" channel). This directory will be skipped."
+                    )
                 del edf
                 # Calculate remaining offset
                 rec_samp = self.__sample_rate * self.RECORDING_LEN 
@@ -163,7 +171,7 @@ class PreProcessor():
                 np.savez(f"{directory}.npz", x_norm=x_norm, annots=annots, allow_pickle=False)
             # Just move onto the next directory
             else:    
-                print(f"Warning: Directory \"{directory}\" Did not contain a valid .edf file")
+                print(f"Warning: Directory \"{directory}\" did not contain a valid .edf file")
     
     def __proc_labels(self, labels):
         """Shuffle labels and removed unbalanced classes"""
