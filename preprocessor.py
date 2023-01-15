@@ -158,8 +158,8 @@ class PreProcessor():
                     )
                 
                 # Remove unbalanced data
-                annots, remove = self.__proc_labels(labels)
-                x = self.__proc_edf(edf_array, remove)
+                annots, remove, rand_shuf = self.__proc_labels(labels)
+                x = self.__proc_edf(edf_array, remove, rand_shuf)
 
                 # Downsample edf; sample rate is updated for compatibility w/ other functions
                 self.__sample_rate /= self.DOWNSAMPLING_RATE
@@ -194,7 +194,9 @@ class PreProcessor():
 
         # Scramble annots
         rng = np.random.default_rng(seed=self.RANDOM_SEED)
-        rng.shuffle(annots)
+        rand_shuf = np.arange(len(labels))
+        rng.shuffle(rand_shuf)
+        annots = annots[rand_shuf]
 
         # Calculate how many samples must be removed from each category
         min_freq = np.argmin(samp_freq)
@@ -212,9 +214,9 @@ class PreProcessor():
         annots = np.delete(annots, remove, axis=0)
         
         # Return modified annots and remove indexes for __proc_edf()
-        return annots, remove
+        return annots, remove, rand_shuf
     
-    def __proc_edf(self, edf_array, remove):
+    def __proc_edf(self, edf_array, remove, rand_shuf):
         """Shuffle edf arrays and remove unbalanced classes; must be executed after __proc_labels()"""
         # Split data into samples
         prev = 0
@@ -227,8 +229,7 @@ class PreProcessor():
         x = np.array(x)
 
         # Shuffle .edf array
-        rng = np.random.default_rng(seed=self.RANDOM_SEED)
-        rng.shuffle(x, axis=0)
+        x = x[rand_shuf]
         
         # Remove unbalanced samples
         x = np.delete(x, remove, axis=0)
@@ -310,8 +311,11 @@ class PreProcessor():
                 b_x, b_y = b_load["x"], b_load["y"]
                 # Merge, shuffle, split, save
                 merged_x, merged_y = np.concatenate((a_x, b_x), axis=0), np.concatenate((a_y, b_y), axis=0)
-                rng.shuffle(merged_x)
-                rng.shuffle(merged_y)
+                assert len(merged_x) == len(merged_y)
+                rand_shuf = np.arange(len(merged_x))
+                rng.shuffle(rand_shuf)
+                merged_x = merged_x[rand_shuf]
+                merged_y = merged_y[rand_shuf]
                 full_x, full_y = np.split(merged_x, 2), np.split(merged_y, 2)
                 half_x, half_y = full_x[0], full_y[0]
                 a_x, a_y = full_x[1], full_y[1]

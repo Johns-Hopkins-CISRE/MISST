@@ -157,12 +157,12 @@ class TunerTrainer(BaseTrainer, ABC):
                 )
 
         # Define early stopping callback
-        stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
-        self.callbacks.append(stop_early)
+        stop_early = {"stop_early": tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)}
+        self.callbacks.update(stop_early)
 
         # Search with specified tuner
         train_gen, val_gen = self._import_data()
-        tuner.search(x=train_gen, epochs=50, validation_data=(val_gen), callbacks=self.callbacks)
+        tuner.search(x=train_gen, epochs=50, validation_data=(val_gen), callbacks=list(self.callbacks.values()))
 
         # Get the optimal hyperparameters
         best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]

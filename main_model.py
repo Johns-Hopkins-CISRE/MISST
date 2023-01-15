@@ -296,7 +296,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
             metrics=metrics)
         model.fit(x=train_gen, validation_data=(val_gen), epochs=self.params["epochs"], 
-            callbacks=self.callbacks)
+            callbacks=list(self.callbacks.values()))
     
 
 if __name__ == "__main__":
@@ -304,11 +304,11 @@ if __name__ == "__main__":
     params = {
         "epochs": 10,
         "batch_size": 32,
-        "filters": 10,
-        "conv_layers": 3,
+        "filters": 8,
+        "conv_layers": 4,
         "sdcc_blocks": 1,
-        "lstm_nodes": 1000,
-        "dense_nodes": 5000,
+        "lstm_nodes": 100,
+        "dense_nodes": 50,
         "optimizer": "adam"
     }
     TUNER_TYPE = "Hyperband" # "Hyperband", "Bayesian" 
