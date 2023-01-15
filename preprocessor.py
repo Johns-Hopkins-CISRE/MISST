@@ -11,12 +11,10 @@ import os
 import sys
 import shutil
 import glob
-import time
 import random
 import mne
 import pandas as pd
 import numpy as np
-from typing import Tuple
 from tqdm import tqdm
 
 
@@ -26,7 +24,6 @@ class PreProcessor():
     # Configurable Constants
     RECORDING_LEN = 10 # 10 seconds
     DOWNSAMPLING_RATE = 10 # Must be a factor of sample_rate, 10x downsample, 1000 samples per 10 secs
-    RECORDINGS_PER_MOUSE = 100 # 100 10 sec recordings for every mouse
     ANNOTATIONS = { # Must be whole numbers increasing by one
         "SLEEP-S0": 0,
         "SLEEP-S2": 1,
@@ -37,6 +34,7 @@ class PreProcessor():
         "TEST": 2,
         "VAL": 2
     }
+    CHANNELS = ["EEG1", "EEG2", "EMGnu"] # Names of PSG channels that will be used
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
 
@@ -57,12 +55,11 @@ class PreProcessor():
                 "The example edf could not be found, try checking the 01 Raw Data directory structure."
             )
 
-    def get_edf_info(self, edf: mne.io.BaseRaw) -> Tuple[float, int]:
+    def get_edf_info(self, edf: mne.io.BaseRaw) -> float:
         """For a given edf, returns the sample rate and number of channels"""
         sample_rate = edf.info["sfreq"] / self.DOWNSAMPLING_RATE
         assert abs(sample_rate - round(sample_rate)) < self.MARGIN
-        num_channels = len(edf.ch_names) - 1 # minus 1 because of removal of Raw Score
-        return sample_rate, num_channels
+        return sample_rate
 
     def import_and_preprocess(self) -> None:
         """Imports and preprocesses all the training data, then saves them as .npz files"""
@@ -113,21 +110,32 @@ class PreProcessor():
                 start_time = labels[0][1].split(" ")[1].split(":") # Read first data point
                 start_sec = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + float(start_time[2])
                 start_diff = (start_sec - edf_sec) * self.__sample_rate
-                # Remove data & delete unused edf variable
+                
+                # Ensure dates of EDF & Hypnogram agree
+                edf_y, edf_m, edf_d = edf_start.year, edf_start.month, edf_start.day 
+                hyp_y, hyp_m, hyp_d = [int(val) for val in labels[0][1].split(" ")[0].split("-")]
+                assert (edf_y == hyp_y) and (edf_m == hyp_m) and (edf_d == hyp_d)
+
+                # Remove data & convert to numpy
                 edf_array = edf.get_data()[:, int(start_diff):]
+
+                # Delete unused channels & unused edf obj
                 try:
-                    score_channel = edf.ch_names.index("Raw Score")
-                    edf_array = np.delete(edf_array, score_channel, axis=0)
+                    take = [edf.ch_names.index(ch) for ch in self.CHANNELS]
+                    edf_array = edf_array[take]
                 except ValueError:
                     print(
                         f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
                         "(no \"Raw Score\" channel). This directory will be skipped."
                     )
+                    continue
                 del edf
+
                 # Calculate remaining offset
-                rec_samp = self.__sample_rate * self.RECORDING_LEN 
+                rec_samp = self.__sample_rate * self.RECORDING_LEN
                 event_samples = int(rec_samp * len(labels))
                 offset = np.size(edf_array, axis=1) - event_samples
+
                 # Align the ends of "labels" and "edf_array"
                 if offset >= 0:
                     # Remove samples from the end of the edf list to account for offset
@@ -361,3 +369,4 @@ if __name__ == "__main__":
     preproc.regroup()
     preproc.group_shuffle()
     preproc.split_dataset()
+    

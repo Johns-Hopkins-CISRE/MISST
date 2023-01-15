@@ -273,11 +273,12 @@ class GenericGUI(ABC):
 
         # Initialize the ModelTrainer and GUICallback and train the model
         if valid_params:
-            self._train_model(gui_objs, params)
+            gui_callback = GUICallback(gui_objs, params)
+            self._train_model(gui_callback, params)
         self.finished_training()
     
     @abstractmethod
-    def _train_model(self, gui_objs, params):
+    def _train_model(self, gui_callback, params):
         """Runs whatever needs to be ran to train the model"""
         pass
 
