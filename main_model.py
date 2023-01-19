@@ -12,17 +12,22 @@ import keras
 import random
 import os
 import datetime
+import pickle
 import keras.backend as K
 import numpy as np
 import keras_tuner as kt
 from overrides import override
 from typing import Callable
+from contextlib import redirect_stdout
 from keras.layers import (
     Conv1D,
     Concatenate,
     LSTM,
     Bidirectional,
-    Dense
+    Dense,
+    Add,
+    ReLU,
+    BatchNormalization
 )
 
 from gui import GenericGUI, GUICallback
@@ -67,39 +72,38 @@ class DataGenerator(keras.utils.Sequence):
     x = []
     y = []
 
+    # Prevent re-loading of same info
+    num_batches = None
+
     @override
-    def __init__(self, path, batch_size, mode):
+    def __init__(self, path, batch_size, split):
         """Initialize global vars"""
         self.PATH = path
         self.BATCH_SIZE = batch_size
-        self.MODE = mode
+        self.SPLIT = split
 
         # Find all files
-        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
+        os.chdir(f"{self.PATH}08 Other files/Split/{self.SPLIT}/")
         self.all_recs = os.listdir()
         random.shuffle(self.all_recs)
     
     @override
     def __len__(self):
         """Returns the number of batches in one epoch"""
-        # Change cwd
-        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
-
-        # Iterate through recordings and sums length of each one
-        total_len = 0
-        for filename in self.all_recs:
-            new_rec = np.load(filename)
-            x = new_rec["y"].shape[0]
-            total_len += x
-        
-        # Find floor of total segments over num segments per batch
-        return (total_len // self.BATCH_SIZE) - 1
+        # Only runs when var is not already defined
+        if self.num_batches == None:
+            os.chdir(f"{self.PATH}08 Other files/")
+            with open("split_lens.pkl", "rb") as f:
+                split_lens = pickle.load(f)
+            num_segments = split_lens[self.SPLIT]
+            self.num_batches = (num_segments // self.BATCH_SIZE) - 1
+        return self.num_batches
     
     @override
     def __getitem__(self, idx):
         """Receives batch num and returns batch"""
         # Change cwd
-        os.chdir(f"{self.PATH}/08 Other files/Split/{self.MODE}/")
+        os.chdir(f"{self.PATH}08 Other files/Split/{self.SPLIT}/")
 
         # Check if new data needs to be loaded
         if self.BATCH_SIZE > len(self.x):
@@ -128,7 +132,7 @@ class DataGenerator(keras.utils.Sequence):
         self.cur_rec = 0 
         self.x = []
         self.y = []
-            
+
 
 class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
@@ -228,27 +232,40 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Create list of dilations
         KERNEL = 2 # Non-configurable since this was already tested and optimized by WaveNet
-        dilations = [KERNEL ** j for _ in range(self.params["sdcc_blocks"]) for j in range(self.params["conv_layers"])]
+        dilations = [KERNEL ** i for i in range(self.params["conv_layers"])]
 
         # Defining CNN inputs & layers (Multivariate implementation of WaveNet)
         inputs = []
-        convs = []
+        resnet_outputs = []
         for _ in range(len(preproc.CHANNELS)):
             # Create new input and append it to list
             inputs.append(keras.Input(batch_input_shape=(batch_size, int(RECORDING_LEN * SAMPLE_RATE), 1)))
-            # Create new conv layers based on dilations
-            for layer, rate in enumerate(dilations):
-                if layer == 0:
+            
+            # Creates multiple SDCC blocks connected w/ residual connections
+            for block in range(self.params["sdcc_blocks"]):
+                for ind, rate in enumerate(dilations):
+                    if block == 0 and ind == 0:
+                        normalize = BatchNormalization()(inputs[-1])
+                    elif ind == 0:
+                        normalize = BatchNormalization()(residual)
+                    else:
+                        normalize = BatchNormalization()(conv)
+
+                    relu = ReLU()(normalize)
                     conv = Conv1D(filters=self.params["filters"], kernel_size=KERNEL, activation="relu", 
-                        padding="causal", dilation_rate = rate)(inputs[-1])
-                else:
-                    conv = Conv1D(filters=self.params["filters"], kernel_size=KERNEL, activation="relu", 
-                        padding="causal", dilation_rate = rate)(conv)
-            # Append last convolution
-            convs.append(conv)
+                        padding="causal", dilation_rate = rate)(relu)
+                residual = Add()([conv_old, conv]) if block != 0 else Add()([inputs[-1], conv])
+                conv_old = conv
+            
+            # Extra layers (helps w/ performance)
+            normalize = BatchNormalization()(residual)
+            relu = ReLU()(normalize)
+
+            # Append last layer to list of outputs
+            resnet_outputs.append(relu)
     
         # Concatenate inputs
-        merged = Concatenate(axis=2)(convs)
+        merged = Concatenate(axis=2)(resnet_outputs)
         
         # Uses Stacked-LSTM structure
         lstm1 = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(merged)
@@ -263,10 +280,15 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         model = keras.Model(inputs=inputs, outputs=output)
 
         # Save plot of model
-        os.chdir(self.PATH + "08 Other files/")
+        os.chdir(self.PATH)
         keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
 
-        model.summary()
+        # Print out summary of model to txt
+        with open("model_summary.txt", "w") as f:
+            with redirect_stdout(f):    
+                model.summary()
+
+        # Print elapsed time
         elapsed = time.time() - start
         print(f"Finished creating model || Elapsed time: {elapsed}s")
 
@@ -302,13 +324,13 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 if __name__ == "__main__":
     """Trains the model on the preprocessor.py data"""
     params = {
-        "epochs": 10,
-        "batch_size": 32,
-        "filters": 8,
-        "conv_layers": 4,
-        "sdcc_blocks": 1,
+        "epochs": 100,
+        "batch_size": 16,
+        "filters": 16,
+        "conv_layers": 8,
+        "sdcc_blocks": 8,
         "lstm_nodes": 100,
-        "dense_nodes": 50,
+        "dense_nodes": 500,
         "optimizer": "adam"
     }
     TUNER_TYPE = "Hyperband" # "Hyperband", "Bayesian" 

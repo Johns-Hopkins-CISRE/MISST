@@ -13,6 +13,7 @@ import shutil
 import glob
 import random
 import mne
+import pickle
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -302,23 +303,26 @@ class PreProcessor():
             os.chdir(src)
             all_files = os.listdir()
             all_files.sort() # Ensure same order every iteration
-            rng = np.random.default_rng(seed=self.RANDOM_SEED)
             a_load = np.load(src + all_files[0])
             a_x, a_y = a_load["x"], a_load["y"]
             for group_num, group in enumerate(all_files[1:]):
                 # Define new groups
                 b_load = np.load(src + group)
                 b_x, b_y = b_load["x"], b_load["y"]
-                # Merge, shuffle, split, save
+                # Merge
                 merged_x, merged_y = np.concatenate((a_x, b_x), axis=0), np.concatenate((a_y, b_y), axis=0)
+                # Shuffle
                 assert len(merged_x) == len(merged_y)
+                rng = np.random.default_rng(seed=self.RANDOM_SEED + group_num)
                 rand_shuf = np.arange(len(merged_x))
                 rng.shuffle(rand_shuf)
                 merged_x = merged_x[rand_shuf]
                 merged_y = merged_y[rand_shuf]
+                # Split
                 full_x, full_y = np.split(merged_x, 2), np.split(merged_y, 2)
                 half_x, half_y = full_x[0], full_y[0]
                 a_x, a_y = full_x[1], full_y[1]
+                # Save
                 os.chdir(dest)
                 np.savez(f"{group_num}.npz", x=half_x, y=half_y)
                 # If at end of list, save "a" too
@@ -354,6 +358,27 @@ class PreProcessor():
             for file in file_slice:
                 shutil.copy(f"{src}{file}", f"{dest}{mode_name}/{file}")
     
+    def save_len(self) -> None:
+        """Saves the number of segments in the preprocessed data"""
+        # Iterate over each data split
+        splits = self.DATASET_SPLIT.keys()
+        split_lens = {}
+        for split in splits:
+            # Iterate through recordings and sums length of each one
+            os.chdir(f"{self.PATH}08 Other files/Split/{split}/")
+            all_recs = os.listdir()
+            total_len = 0
+            for filename in all_recs:
+                new_rec = np.load(filename)
+                x = new_rec["y"].shape[0]
+                total_len += x
+            split_lens.update({split: total_len})
+        
+        # Save data
+        os.chdir(f"{self.PATH}08 Other files/")
+        with open("split_lens.pkl", "wb") as f:
+            pickle.dump(split_lens, f)
+            
     def __use_dir(self, newpath: str, delete=True) -> None:
         """Creates or clears an input path"""
         if not os.path.exists(newpath):
@@ -373,4 +398,5 @@ if __name__ == "__main__":
     preproc.regroup()
     preproc.group_shuffle()
     preproc.split_dataset()
+    preproc.save_len()
     
