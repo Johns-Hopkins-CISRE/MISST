@@ -1,0 +1,78 @@
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ input_2 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ input_3 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ batch_normalization (BatchNorm  (16, 1000, 1)       4           ['input_1[0][0]']                
+ alization)                                                                                       
+                                                                                                  
+ batch_normalization_2 (BatchNo  (16, 1000, 1)       4           ['input_2[0][0]']                
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_4 (BatchNo  (16, 1000, 1)       4           ['input_3[0][0]']                
+ rmalization)                                                                                     
+                                                                                                  
+ re_lu (ReLU)                   (16, 1000, 1)        0           ['batch_normalization[0][0]']    
+                                                                                                  
+ re_lu_2 (ReLU)                 (16, 1000, 1)        0           ['batch_normalization_2[0][0]']  
+                                                                                                  
+ re_lu_4 (ReLU)                 (16, 1000, 1)        0           ['batch_normalization_4[0][0]']  
+                                                                                                  
+ dropout (Dropout)              (16, 1000, 1)        0           ['re_lu[0][0]']                  
+                                                                                                  
+ dropout_1 (Dropout)            (16, 1000, 1)        0           ['re_lu_2[0][0]']                
+                                                                                                  
+ dropout_2 (Dropout)            (16, 1000, 1)        0           ['re_lu_4[0][0]']                
+                                                                                                  
+ conv1d (Conv1D)                (16, 1000, 1)        3           ['dropout[0][0]']                
+                                                                                                  
+ conv1d_1 (Conv1D)              (16, 1000, 1)        3           ['dropout_1[0][0]']              
+                                                                                                  
+ conv1d_2 (Conv1D)              (16, 1000, 1)        3           ['dropout_2[0][0]']              
+                                                                                                  
+ add (Add)                      (16, 1000, 1)        0           ['input_1[0][0]',                
+                                                                  'conv1d[0][0]']                 
+                                                                                                  
+ add_1 (Add)                    (16, 1000, 1)        0           ['input_2[0][0]',                
+                                                                  'conv1d_1[0][0]']               
+                                                                                                  
+ add_2 (Add)                    (16, 1000, 1)        0           ['input_3[0][0]',                
+                                                                  'conv1d_2[0][0]']               
+                                                                                                  
+ batch_normalization_1 (BatchNo  (16, 1000, 1)       4           ['add[0][0]']                    
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_3 (BatchNo  (16, 1000, 1)       4           ['add_1[0][0]']                  
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_5 (BatchNo  (16, 1000, 1)       4           ['add_2[0][0]']                  
+ rmalization)                                                                                     
+                                                                                                  
+ re_lu_1 (ReLU)                 (16, 1000, 1)        0           ['batch_normalization_1[0][0]']  
+                                                                                                  
+ re_lu_3 (ReLU)                 (16, 1000, 1)        0           ['batch_normalization_3[0][0]']  
+                                                                                                  
+ re_lu_5 (ReLU)                 (16, 1000, 1)        0           ['batch_normalization_5[0][0]']  
+                                                                                                  
+ concatenate (Concatenate)      (16, 1000, 3)        0           ['re_lu_1[0][0]',                
+                                                                  're_lu_3[0][0]',                
+                                                                  're_lu_5[0][0]']                
+                                                                                                  
+ bidirectional (Bidirectional)  (16, 20)             1120        ['concatenate[0][0]']            
+                                                                                                  
+ dropout_3 (Dropout)            (16, 20)             0           ['bidirectional[0][0]']          
+                                                                                                  
+ dense (Dense)                  (16, 20)             420         ['dropout_3[0][0]']              
+                                                                                                  
+ dense_1 (Dense)                (16, 3)              63          ['dense[0][0]']                  
+                                                                                                  
+==================================================================================================
+Total params: 1,636
+Trainable params: 1,624
+Non-trainable params: 12
+__________________________________________________________________________________________________

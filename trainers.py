@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""trainers.py: Defines the abstract classes inherited by the ModelTrainer class"""
+"""
+trainers.py: Defines the abstract classes inherited by the ModelTrainer class. 
+Also defines classes used for interfacing with Trainer classes. This module is 
+separate from other files, and can be used as an API/library.
+"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
@@ -10,21 +14,66 @@ import tensorflow as tf
 import keras
 import contextlib
 import socket
+import pickle
 import keras_tuner as kt
+import keras
 import numpy as np
+import os
+from typing import Any
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from tqdm import tqdm
-from typing import Callable
 
+
+@dataclass
+class GeneratorDataset:
+    """Represents generator-based datasets returned by _import_data"""
+    train_gen: keras.utils.Sequence
+    val_gen:   keras.utils.Sequence
+
+
+@dataclass
+class ArrayDataset:
+    """Represents array-based datasets returned by _import_data"""
+    x_train: np.ndarray | list 
+    y_train: np.ndarray | list
+    x_test:  np.ndarray | list 
+    y_test:  np.ndarray | list
+    
 
 class BaseTrainer(ABC):
     """A general-purpose framework that all Trainer classes must follow"""
 
-    def __init__(self, path: str):
-        """Ensures that all subclasses can access the path"""
+    def __init__(self, path: str, export_dir: str, params: dict[str, Any]):
+        """Defines class-level variables that all subclasses can access"""
+        # Validate and define path
+        if not os.path.isdir(f"{path}{export_dir}/"):
+            raise ValueError(f"Path '{path}{export_dir}' does not exist.")
         self.PATH = path
+        self.EXPORT_DIR = export_dir
+        
+        # Validate and define model parameters
+        missing = self.__missing_params(params)
+        if len(missing) > 0:
+            raise ValueError(f"The inputted 'params' variable was missing the following keys: {missing}.")
+        self.params = params
+        
+        # Configure callbacks
         self.callbacks = self._preconfigured_callbacks()
 
+    def __missing_params(self, params) -> list[str]:
+        """Returns a list of missing parameters from the input"""
+        missing = []
+        if "epochs" not in params:
+            missing.append("epochs")
+        if "batch_size" not in params:
+            missing.append("batch_size")
+        if "learning_rate" not in params:
+            missing.append("learning_rate")
+        if "optimizer" not in params:
+            missing.append("optimizer")
+        return missing
+    
     def basic_train(self) -> None:
         """Trains the model w/o any additional functionality"""
         data = self._import_data()
@@ -47,8 +96,8 @@ class BaseTrainer(ABC):
         pass
 
     @abstractmethod
-    def _import_data(self) -> list[Callable | np.ndarray | list]:
-        """Returns a data obj that can be fed directly into '_train_model'"""
+    def _import_data(self) -> GeneratorDataset | ArrayDataset:
+        """Returns a dataset obj that can be fed directly into '_train_model'"""
         pass
     
     @abstractmethod
@@ -57,7 +106,7 @@ class BaseTrainer(ABC):
         pass
 
     @abstractmethod
-    def _train_model(self, model: keras.Model, data: list[Callable | np.ndarray | list]) -> None:
+    def _train_model(self, model: keras.Model, data: GeneratorDataset | ArrayDataset) -> None:
         """Trains the model by running model.fit()"""
         pass
 
@@ -71,7 +120,6 @@ class DistributedTrainer(BaseTrainer, ABC):
         "worker": ["192.168.1.175", "192.168.1.175"] #TODO replace w/ actual device ips
     }
     CURRENT_NODE = {"type": "chief", "index": 0}
-    dist_comp = False
 
     def _is_port_open(self, ip: str, port: str) -> bool:
         """Tests if 'port' at 'ip' is open by attempting to bind; uses contextlib for Automatic Resouce Management"""
@@ -81,7 +129,7 @@ class DistributedTrainer(BaseTrainer, ABC):
             except socket.error:
                 return False
             return True
-
+ 
     def _generate_config(self) -> dict:
         """Generates a tf_config variable for MultiWorkerMirroredStrategy"""
         # Config vars
@@ -124,7 +172,8 @@ class DistributedTrainer(BaseTrainer, ABC):
 
         # Run distributed instances
         with strategy.scope():
-            self.basic_train()
+            self.params["batch_size"] *= int(self.strategy.num_replicas_in_sync)
+            self._basic_train()
 
 
 class TunerTrainer(BaseTrainer, ABC):
@@ -134,24 +183,24 @@ class TunerTrainer(BaseTrainer, ABC):
         """Trains the model w/ KerasTuner"""
         # Declares consts for tuner
         GOAL = "val_accuracy"
-        DIR = self.PATH + "08 Other files/Tuner Results/"
+        DIR = f"{self.PATH}{self.EXPORT_DIR}/Tuner Results/"
         
         # Match input word w/ tuner
         match tuner_type:
             case "Hyperband":
                 tuner = kt.Hyperband(
-                    self._wrapper,
+                    self._tuner_wrapper,
                     objective=GOAL,
-                    max_epochs=10,
+                    max_epochs=self.params["epochs"],
                     factor=3,
                     directory=DIR,
                     project_name="Hyperband"
                 )
             case "Bayesian":
                 tuner = kt.BayesianOptimization(
-                    self._wrapper,
+                    self._tuner_wrapper,
                     objective=GOAL,
-                    max_trials=10,
+                    max_trials=20,
                     directory=DIR,
                     project_name="Bayesian"
                 )
@@ -161,17 +210,33 @@ class TunerTrainer(BaseTrainer, ABC):
         self.callbacks.update(stop_early)
 
         # Search with specified tuner
-        train_gen, val_gen = self._import_data()
-        tuner.search(x=train_gen, epochs=50, validation_data=(val_gen), callbacks=list(self.callbacks.values()))
+        data = self._import_data()
+        if data is GeneratorDataset:
+            tuner.search(
+                x=data.train_gen, 
+                epochs=self.params["epochs"], 
+                validation_data=(data.val_gen), 
+                callbacks=list(self.callbacks.values())
+            )
+        elif data is ArrayDataset:
+            tuner.search(
+                x=data.x_train, y=data.y_train, 
+                epochs=self.params["epochs"], 
+                validation_data=(data.x_test, data.y_test), 
+                callbacks=list(self.callbacks.values())
+            )
 
-        # Get the optimal hyperparameters
-        best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
-        
-        # Print summary
-        tuner.results_summary(num_trials=10)
+        # Save dictionary of optimal hyperparameters
+        os.chdir(f"{self.PATH}{self.EXPORT_DIR}/")
+        best_hps = tuner.get_best_hyperparameters()[0].values
+        BAD_KEYS = ["tuner/epochs", "tuner/initial_epoch", "tuner/bracket", "tuner/round"]
+        for key in BAD_KEYS: 
+            del best_hps[key]
+        with open("best_hyperparams.pkl", "wb") as f:
+            pickle.dump(best_hps, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @abstractmethod
-    def _wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
         """
         Acts as a wrapper for handling the passing of information 
         between the "hp" object and the "_create_model" method. 

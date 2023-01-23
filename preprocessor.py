@@ -39,13 +39,12 @@ class PreProcessor():
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
 
-    # Global Vars
-    __mins = None
-    __maxs = None
-    __sample_rate = None
-
     def __init__(self, path: str):
         self.PATH = path
+        
+        self.__mins = None
+        self.__maxs = None
+        self.__sample_rate = None
     
     def import_example_edf(self) -> mne.io.BaseRaw:
         """Returns a single RawEDF for the purpose of determining edf info"""
@@ -377,7 +376,7 @@ class PreProcessor():
         # Save data
         os.chdir(f"{self.PATH}08 Other files/")
         with open("split_lens.pkl", "wb") as f:
-            pickle.dump(split_lens, f)
+            pickle.dump(split_lens, f, protocol=pickle.HIGHEST_PROTOCOL)
             
     def __use_dir(self, newpath: str, delete=True) -> None:
         """Creates or clears an input path"""

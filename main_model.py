@@ -13,11 +13,10 @@ import random
 import os
 import datetime
 import pickle
-import keras.backend as K
 import numpy as np
 import keras_tuner as kt
+from dataclasses import dataclass
 from overrides import override
-from typing import Callable
 from contextlib import redirect_stdout
 from keras.layers import (
     Conv1D,
@@ -27,12 +26,18 @@ from keras.layers import (
     Dense,
     Add,
     ReLU,
-    BatchNormalization
+    BatchNormalization,
+    Dropout
 )
 
-from gui import GenericGUI, GUICallback
+from gui import GenericGUI
 from preprocessor import PreProcessor
-from trainers import DistributedTrainer, TunerTrainer
+from trainers import (
+    DistributedTrainer, 
+    TunerTrainer,
+    GeneratorDataset,
+    ArrayDataset
+)
 
 
 class DistributedGUI(GenericGUI):
@@ -51,6 +56,7 @@ class DistributedGUI(GenericGUI):
 
     @override
     def _train_model(self, gui_callback, params):
+        """Trains model based on specified mode"""
         trainer = ModelTrainer(self.path, params)
         trainer.set_callbacks(gui_callback={"gui_callback": gui_callback})
         match self.MODE:
@@ -64,16 +70,6 @@ class DistributedGUI(GenericGUI):
 
 class DataGenerator(keras.utils.Sequence):
     """Sequentially loads saved preprocessed data"""
-    
-    # Current index in list of all_rec
-    cur_rec = 0 
-    
-    # Create list of all loaded samples
-    x = []
-    y = []
-
-    # Prevent re-loading of same info
-    num_batches = None
 
     @override
     def __init__(self, path, batch_size, split):
@@ -81,6 +77,16 @@ class DataGenerator(keras.utils.Sequence):
         self.PATH = path
         self.BATCH_SIZE = batch_size
         self.SPLIT = split
+
+        # Current index in list of all_rec
+        self.cur_rec = 0 
+        
+        # Create list of all loaded samples
+        self.x = []
+        self.y = []
+
+        # Prevent re-loading of same info
+        self.num_batches = None
 
         # Find all files
         os.chdir(f"{self.PATH}08 Other files/Split/{self.SPLIT}/")
@@ -138,16 +144,12 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
 
     def __init__(self, path, params):
-        """Initializes class level variables, params is just user inputted values"""
-        super().__init__(path)
-        self.params = params
+        """Calls the superclass constructor with 'export_dir'"""
+        super().__init__(path, "08 Other files", params)
 
     @override
     def _preconfigured_callbacks(self) -> dict[str, keras.callbacks.Callback]:
         """Defines preconfigured callbacks"""
-        # Define model checkpointing callback
-        checkpoint_callback = keras.callbacks.ModelCheckpoint(self.PATH + "08 Other files/Model_Checkpoints")
-        
         # Define TensorBoard callback
         tensorboard_dir = self.PATH + "08 Other files/TensorBoard/"
         if not os.path.exists(tensorboard_dir):
@@ -155,10 +157,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-        return {
-            "checkpoint_callback": checkpoint_callback, 
-            "tensorboard_callback": tensorboard_callback
-        }
+        return {"tensorboard_callback": tensorboard_callback}
 
     def __convert_optimizer(self, optimizer, learning_rate):
         """Returns the corresponding object for a given optimizer name"""
@@ -181,32 +180,31 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                 return keras.optimizers.Ftrl(learning_rate=learning_rate)
 
     @override
-    def _import_data(self) -> list[Callable | np.ndarray | list]: 
+    def _import_data(self) -> GeneratorDataset | ArrayDataset: 
         """Creates two generators, one for training and one for validation"""
         train_gen = DataGenerator(self.PATH, self.params["batch_size"], "TRAIN")
         val_gen = DataGenerator(self.PATH, self.params["batch_size"], "VAL")
-        return [train_gen, val_gen]
+        return GeneratorDataset(train_gen, val_gen)
 
     @override
-    def _wrapper(self, hp: kt.HyperParameters) -> keras.Model:
-        """Sets the model parameters according to the KerasTuner "hp" obj"""
-        # Redefine param variable using hp obj
-        self.params["filters"]     = hp.Int("filters",     min_value=1,  max_value=10,  step=1)
-        self.params["conv_layers"] = hp.Int("conv_layers", min_value=1,  max_value=10,  step=1)
-        self.params["sdcc_blocks"] = hp.Int("sdcc_blocks", min_value=1,  max_value=4,   step=1)
-        self.params["lstm_nodes"]  = hp.Int("lstm_nodes",  min_value=10, max_value=200, step=10)
-        self.params["dense_nodes"] = hp.Int("dense_nodes", min_value=20, max_value=500, step=20)
-
+    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+        """Sets the model parameters according to the KerasTuner 'hp' obj"""
+        TUNE_MODE = "MODEL" # "LR" (learning rate), "MODEL" (model architecture)
+        match TUNE_MODE:
+            case "MODEL":
+                self.params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
+                self.params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
+                self.params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
+                self.params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
+                self.params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
+                self.params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
+                self.params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
+            case "LR":
+                self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
+        
         # Create model
         model = self._create_model()
-
-        # Define optimizer
-        op_choices = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
-        op_selection = hp.Choice("optimizer", values=op_choices)
-        lr = hp.Choice("lr", values=[1e-2, 1e-3, 1e-4])
-        optimizer = self.__convert_optimizer(op_selection, lr)
-
-        # Compile model
+        optimizer = self.__convert_optimizer(self.params["optimizer"], self.params["learning_rate"])
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=["accuracy"])
 
         return model
@@ -225,10 +223,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         NUM_CLASSES = len(preproc.ANNOTATIONS)
 
         # Determining batch size
-        if self.dist_comp:
-            batch_size = int(self.params["batch_size"] * self.strategy.num_replicas_in_sync)
-        else:
-            batch_size = int(self.params["batch_size"])
+        batch_size = int(self.params["batch_size"])
 
         # Create list of dilations
         KERNEL = 2 # Non-configurable since this was already tested and optimized by WaveNet
@@ -252,8 +247,9 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                         normalize = BatchNormalization()(conv)
 
                     relu = ReLU()(normalize)
+                    dropout = Dropout(0.1)(relu)
                     conv = Conv1D(filters=self.params["filters"], kernel_size=KERNEL, activation="relu", 
-                        padding="causal", dilation_rate = rate)(relu)
+                        padding="causal", dilation_rate = rate)(dropout)
                 residual = Add()([conv_old, conv]) if block != 0 else Add()([inputs[-1], conv])
                 conv_old = conv
             
@@ -268,24 +264,34 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         merged = Concatenate(axis=2)(resnet_outputs)
         
         # Uses Stacked-LSTM structure
-        lstm1 = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(merged)
-        lstm2 = Bidirectional(LSTM(units=self.params["lstm_nodes"]))(lstm1)
+        for layer in range(self.params["lstm_layers"]):
+            if layer == 0 and self.params["lstm_layers"] > 1:
+                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(merged)
+            elif layer == 0:
+                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"]))(merged)
+            elif layer == self.params["lstm_layers"] - 1:
+                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"]))(lstm)
+            else:
+                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(lstm)
 
-        # Dense layers & Output
-        dense1 = Dense(units=self.params["dense_nodes"], activation="relu")(lstm2)
-        dense2 = Dense(units=self.params["dense_nodes"], activation="relu")(dense1)
-        output = Dense(units=NUM_CLASSES, activation="softmax")(dense2)
+        # Dense layers
+        for layer in range(self.params["dense_layers"]):
+            dropout = Dropout(0.5)(lstm if layer == 0 else dense) 
+            dense = Dense(units=self.params["dense_nodes"], activation="relu")(dropout)
+        
+        # Output
+        output = Dense(units=NUM_CLASSES, activation="softmax")(dense)
 
         # Create Model
         model = keras.Model(inputs=inputs, outputs=output)
 
         # Save plot of model
-        os.chdir(self.PATH)
+        os.chdir(f"{self.PATH}mouse_psg/")
         keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
 
         # Print out summary of model to txt
         with open("model_summary.txt", "w") as f:
-            with redirect_stdout(f):    
+            with redirect_stdout(f):
                 model.summary()
 
         # Print elapsed time
@@ -301,12 +307,9 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         not work with distributed training. Any variables used by model.fit must be
         declared and initialized within this scope
         """
-        # Create generators
-        train_gen = data[0]
-        val_gen = data[1]
     
         # Set optimizer
-        optimizer = self.__convert_optimizer(self.params["optimizer"], 1e-3)
+        optimizer = self.__convert_optimizer(self.params["optimizer"], self.params["learning_rate"])
 
         # Set metrics depending on whether GUI is enabled or not
         if "gui_callback" in self.callbacks:
@@ -317,23 +320,39 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         # Run training w/ or w/o GUI
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
             metrics=metrics)
-        model.fit(x=train_gen, validation_data=(val_gen), epochs=self.params["epochs"], 
+        model.fit(x=data.train_gen, validation_data=(data.val_gen), epochs=self.params["epochs"], 
             callbacks=list(self.callbacks.values()))
+
+        model.save(f"{self.PATH}08 Other files/")
     
 
 if __name__ == "__main__":
     """Trains the model on the preprocessor.py data"""
-    params = {
-        "epochs": 100,
-        "batch_size": 16,
-        "filters": 16,
-        "conv_layers": 8,
-        "sdcc_blocks": 8,
-        "lstm_nodes": 100,
-        "dense_nodes": 500,
-        "optimizer": "adam"
-    }
+    # Define training parameters
     TUNER_TYPE = "Hyperband" # "Hyperband", "Bayesian" 
+    LOAD_FROM_TUNER = True # Default is True, set as False to manually configure "params" var
+    params = {
+        # General Hyperparameters
+        "epochs":            50,
+        "batch_size":        16,
+        "learning_rate": 3.2e-4,
+        "optimizer":     "adam",
+        # SDCC
+        "filters":            6,
+        "conv_layers":        5,
+        "sdcc_blocks":        2,
+        # BiLSTM
+        "lstm_nodes":       200,
+        "lstm_layers":        2,
+        # Dense
+        "dense_nodes":      320,
+        "dense_layers":       1,
+    }
+    if LOAD_FROM_TUNER:
+        os.chdir(f"{config.PATH}08 Other files/")
+        with open("best_hyperparams.pkl", "rb") as f:
+            best_hps = pickle.load(f)
+        params.update(best_hps)
     
     # Runs training according to declared training method
     match config.MODE:

@@ -7,7 +7,6 @@ __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
 import time
-import keras
 import threading
 import tkinter as tk
 import tensorflow as tf
@@ -24,12 +23,12 @@ class GenericGUI(ABC):
     for rapid manual hyperparameter & architecture tuning
     """
 
-    model_is_running = False
     OPTIMIZER = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
 
     def __init__(self, path):
         """Creates GUI"""
         self.path = path
+        self.model_is_running = False
 
         root = tk.Tk()
         root.title("JH RI Training Dashboard")
@@ -123,47 +122,65 @@ class GenericGUI(ABC):
         self.batches_i = tk.Entry(f3, textvariable=self.batches)
         self.batches_i.grid(row=2, column=1)
 
+        lr_label = tk.Label(f3, text="Learning Rate:", font=("Arial", 13))
+        lr_label.grid(row=3, column=0)
+        self.lr = tk.StringVar()
+        self.lr_i = tk.Entry(f3, textvariable=self.lr)
+        self.lr_i.grid(row=3, column=1)
+
         filters_label = tk.Label(f3, text="Filters:", font=("Arial", 13))
-        filters_label.grid(row=3, column=0)
+        filters_label.grid(row=4, column=0)
         self.filters = tk.StringVar()
         self.filters_i = tk.Entry(f3, textvariable=self.filters)
-        self.filters_i.grid(row=3, column=1)
+        self.filters_i.grid(row=4, column=1)
 
         conv_label = tk.Label(f3, text="Conv Layers:", font=("Arial", 13))
-        conv_label.grid(row=4, column=0)
+        conv_label.grid(row=5, column=0)
         self.conv = tk.StringVar()
         self.conv_i = tk.Entry(f3, textvariable=self.conv)
-        self.conv_i.grid(row=4, column=1)
+        self.conv_i.grid(row=5, column=1)
 
         sdcc_label = tk.Label(f3, text="SDCC Blocks:", font=("Arial", 13))
-        sdcc_label.grid(row=4, column=0)
+        sdcc_label.grid(row=6, column=0)
         self.sdcc = tk.StringVar()
         self.sdcc_i = tk.Entry(f3, textvariable=self.sdcc)
-        self.sdcc_i.grid(row=4, column=1)
+        self.sdcc_i.grid(row=6, column=1)
 
         lstm_label = tk.Label(f3, text="LSTM Nodes:", font=("Arial", 13))
-        lstm_label.grid(row=5, column=0)
+        lstm_label.grid(row=7, column=0)
         self.lstm = tk.StringVar()
         self.lstm_i = tk.Entry(f3, textvariable=self.lstm)
-        self.lstm_i.grid(row=5, column=1)
+        self.lstm_i.grid(row=7, column=1)
+
+        lstm_layers_label = tk.Label(f3, text="LSTM Layers:", font=("Arial", 13))
+        lstm_layers_label.grid(row=8, column=0)
+        self.lstm_layers = tk.StringVar()
+        self.lstm_layers_i = tk.Entry(f3, textvariable=self.lstm_layers)
+        self.lstm_layers_i.grid(row=8, column=1)
 
         dense_label = tk.Label(f3, text="Dense Nodes:", font=("Arial", 13))
-        dense_label.grid(row=6, column=0)
+        dense_label.grid(row=9, column=0)
         self.dense = tk.StringVar()
         self.dense_i = tk.Entry(f3, textvariable=self.dense)
-        self.dense_i.grid(row=6, column=1)
+        self.dense_i.grid(row=9, column=1)
+
+        dense_layers_label = tk.Label(f3, text="Dense Layers:", font=("Arial", 13))
+        dense_layers_label.grid(row=10, column=0)
+        self.dense_layers = tk.StringVar()
+        self.dense_layers_i = tk.Entry(f3, textvariable=self.dense_layers)
+        self.dense_layers_i.grid(row=10, column=1)
 
         # Optimizer Multiple Choice
         optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZER))
         self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
-        self.op_mc.grid(row=7, column=0, columnspan=2, pady=20)
+        self.op_mc.grid(row=11, column=0, columnspan=2, pady=20)
 
         # Load Default Best Inputs
         buttonborder1 = tk.Frame(f3,
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder1.grid(row=8, column=0, columnspan=2, pady=(0, 20))
+        buttonborder1.grid(row=12, column=0, columnspan=2, pady=(0, 20))
         self.ld_button = tk.Button(
             buttonborder1, text="Load Defaults", command = self.load_defaults,
             width=15, height=1, font=("Arial", 15)
@@ -175,7 +192,7 @@ class GenericGUI(ABC):
             highlightbackground="#808080",
             highlightthickness=2,
             relief="solid")
-        buttonborder2.grid(row=9, column=0, columnspan=2)
+        buttonborder2.grid(row=13, column=0, columnspan=2)
         self.ci_button = tk.Button(
             buttonborder2, text="Clear Inputs", command = self.clear_inputs,
             width=15, height=1, font=("Arial", 15)
@@ -214,24 +231,30 @@ class GenericGUI(ABC):
         DEFAULT_OPTIMIZER = "adam"
         
         self.clear_inputs()
-        self.epochs_i.insert(0, "100")
-        self.batches_i.insert(0, "4")
-        self.filters_i.insert(0, "4")
-        self.conv_i.insert(0, "6")
-        self.sdcc_i.insert(0, "1")
-        self.lstm_i.insert(0, "50")
-        self.dense_i.insert(0, "500")
+        self.epochs_i.insert(0, "50")
+        self.batches_i.insert(0, "16")
+        self.lr_i.insert(0, "3.2e-4")
+        self.filters_i.insert(0, "6")
+        self.conv_i.insert(0, "5")
+        self.sdcc_i.insert(0, "2")
+        self.lstm_i.insert(0, "200")
+        self.lstm_layers_i.insert(0, "2")
+        self.dense_i.insert(0, "320")
+        self.dense_layers_i.insert(0, "1")
         self.op_mc.selection_set(self.OPTIMIZER.index(DEFAULT_OPTIMIZER), self.OPTIMIZER.index(DEFAULT_OPTIMIZER))
     
     def clear_inputs(self):
         """Clear the inputted parameters for training the model"""
         self.epochs_i.delete(0, tk.END)
         self.batches_i.delete(0, tk.END)
+        self.lr_i.delete(0, tk.END)
         self.filters_i.delete(0, tk.END)
         self.conv_i.delete(0, tk.END)
         self.sdcc_i.delete(0, tk.END)
         self.lstm_i.delete(0, tk.END)
+        self.lstm_layers_i.delete(0, tk.END)
         self.dense_i.delete(0, tk.END)
+        self.dense_layers_i.delete(0, tk.END)
         self.op_mc.selection_clear(0, tk.END)
 
     def work(self):
@@ -260,11 +283,15 @@ class GenericGUI(ABC):
             params = {
                 "epochs": int(self.epochs.get()),
                 "batch_size": int(self.batches.get()),
+                "learning_rate": float(self.learning_rate.get()),
+                "optimizer": self.optimizer.get(),
                 "filters": int(self.filters.get()),
                 "conv_layers": int(self.conv.get()),
                 "sdcc_blocks": int(self.sdcc.get()),
                 "lstm_nodes": int(self.lstm.get()),
-                "dense_nodes": int(self.lstm.get()),
+                "lstm_layers": int(self.lstm_layers.get()),
+                "dense_nodes": int(self.dense.get()),
+                "dense_layers": int(self.dense_layers.get()),
                 "optimizer": self.OPTIMIZER[self.op_mc.curselection()[0]]
             }
         except ValueError:
@@ -286,7 +313,10 @@ class GenericGUI(ABC):
 class GUICallback(tf.keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
     
-    train_loss = test_loss = train_acc = test_acc = []
+    train_loss = []
+    test_loss = []
+    train_acc = []
+    test_acc = []
     NUM_CLASSES = 3
     pred_freq = [0] * NUM_CLASSES
     true_freq = [0] * NUM_CLASSES

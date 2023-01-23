@@ -6,5 +6,5 @@
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
-PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/"
-MODE = "PLAIN" # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"
+PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/" # Path to project
+MODE = "GUI" # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"
