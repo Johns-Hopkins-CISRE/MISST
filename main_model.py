@@ -30,7 +30,10 @@ from keras.layers import (
     Dropout
 )
 
-from gui import GenericGUI
+from gui import (
+    GenericGUI, 
+    GUICallback
+)
 from preprocessor import PreProcessor
 from trainers import (
     DistributedTrainer, 
@@ -55,10 +58,11 @@ class DistributedGUI(GenericGUI):
         super().__init__(path)
 
     @override
-    def _train_model(self, gui_callback, params):
+    def _train_model(self, gui_objs, params):
         """Trains model based on specified mode"""
-        trainer = ModelTrainer(self.path, params)
-        trainer.set_callbacks(gui_callback={"gui_callback": gui_callback})
+        trainer = ModelTrainer(self.PATH, params)
+        gui_callback = GUICallback(self.PATH, gui_objs, params)
+        trainer.set_callbacks({"gui_callback": gui_callback})
         match self.MODE:
             case "GUI":
                 trainer.basic_train()

@@ -8,6 +8,9 @@ __email__ = "hudsonliu0@gmail.com"
 
 import time
 import threading
+import keras
+import pickle
+import os
 import tkinter as tk
 import tensorflow as tf
 from tkinter import ttk
@@ -27,7 +30,7 @@ class GenericGUI(ABC):
 
     def __init__(self, path):
         """Creates GUI"""
-        self.path = path
+        self.PATH = path
         self.model_is_running = False
 
         root = tk.Tk()
@@ -44,33 +47,33 @@ class GenericGUI(ABC):
         f3.pack(side="left", padx=(10, 20), pady=20)
 
         # Graphs
-        fig1 = Figure(figsize = (5, 2), dpi = 100)
+        fig1 = Figure(figsize = (5, 2), dpi = 105)
         self.plot1 = fig1.add_subplot(111)
         self.plot1.set_title("Loss (Train + Test)")
-        self.plot1.set_xlabel("Batches")
+        self.plot1.set_xlabel("Batch Number")
         self.plot1.set_ylabel("Loss")
         self.canvas1 = FigureCanvasTkAgg(fig1, master = f2)
         self.canvas1.draw()
         self.canvas1.get_tk_widget().pack(side="top", expand=True, fill="both", pady=(0, 10))
-        fig2 = Figure(figsize = (5, 2), dpi = 100)
+        fig2 = Figure(figsize = (5, 2), dpi = 105)
         self.plot2 = fig2.add_subplot(111)
         self.plot2.set_title("Accuracy (Train + Test)")
-        self.plot2.set_xlabel("Batches")
+        self.plot2.set_xlabel("Batch Number")
         self.plot2.set_ylabel("Accuracy (%)")
         self.canvas2 = FigureCanvasTkAgg(fig2, master = f2)
         self.canvas2.draw()
-        self.canvas2.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=10)
-        fig3 = Figure(figsize = (5, 2), dpi = 100)
+        self.canvas2.get_tk_widget().pack(side="top", expand=True, fill="both", pady=10)
+        fig3 = Figure(figsize = (5, 2), dpi = 105)
         self.plot3= fig3.add_subplot(111)
         self.plot3.set_title("Prediction Distribution (Train + Test)")
         self.plot3.set_xlabel("Class")
         self.plot3.set_ylabel("Num Predictions")
         self.canvas3 = FigureCanvasTkAgg(fig3, master = f2)
         self.canvas3.draw()
-        self.canvas3.get_tk_widget().pack(side="bottom", expand=True, fill="both", pady=(10, 0))
+        self.canvas3.get_tk_widget().pack(side="top", expand=True, fill="both", pady=(10, 0))
 
         # Epoch Progress
-        self.caption = ttk.Label(f1, text="Epochs", font=("Arial", 15))
+        self.caption = ttk.Label(f1, text="Epoch 0", font=("Arial", 15))
         self.caption.pack(side="top")
         self.pb = ttk.Progressbar(f1, orient="horizontal", mode="determinate", length=300)
         self.pb.pack(side="top")
@@ -78,7 +81,7 @@ class GenericGUI(ABC):
         self.value_label.pack(side="top")
 
         # Batch Progress
-        self.caption2 = ttk.Label(f1, text="Batches", font=("Arial", 15))
+        self.caption2 = ttk.Label(f1, text="Batch 0", font=("Arial", 15))
         self.caption2.pack(side="top", pady=(20, 0))
         self.pb2 = ttk.Progressbar(f1, orient="horizontal", mode="determinate", length=300)
         self.pb2.pack(side="top")
@@ -225,6 +228,15 @@ class GenericGUI(ABC):
         self.button["state"] = "normal"
         self.ld_button["state"] = "normal"
         self.ci_button["state"] = "normal"
+        self.plot1.cla()
+        self.plot2.clear()
+        self.plot3.clear()
+        self.pb["value"] = 0
+        self.pb2["value"] = 0
+        self.caption = "Epoch 0"
+        self.caption2 = "Batch 0"
+        self.value_label["text"] = "Current Progress: 0%"
+        self.value_label2["text"] = "Current Progress: 0%"
 
     def load_defaults(self):
         """Load the default parameters for training the model"""
@@ -267,8 +279,10 @@ class GenericGUI(ABC):
             "canvas1": self.canvas1,
             "canvas2": self.canvas2,
             "canvas3": self.canvas3,
+            "caption": self.caption,
             "pb": self.pb, 
-            "value_label": self.value_label, 
+            "value_label": self.value_label,
+            "caption2": self.caption2, 
             "pb2": self.pb2, 
             "value_label2": self.value_label2, 
             "iter_speed": self.iter_speed, 
@@ -283,8 +297,8 @@ class GenericGUI(ABC):
             params = {
                 "epochs": int(self.epochs.get()),
                 "batch_size": int(self.batches.get()),
-                "learning_rate": float(self.learning_rate.get()),
-                "optimizer": self.optimizer.get(),
+                "learning_rate": float(self.lr.get()),
+                "optimizer": self.OPTIMIZER[self.op_mc.curselection()[0]],
                 "filters": int(self.filters.get()),
                 "conv_layers": int(self.conv.get()),
                 "sdcc_blocks": int(self.sdcc.get()),
@@ -292,7 +306,6 @@ class GenericGUI(ABC):
                 "lstm_layers": int(self.lstm_layers.get()),
                 "dense_nodes": int(self.dense.get()),
                 "dense_layers": int(self.dense_layers.get()),
-                "optimizer": self.OPTIMIZER[self.op_mc.curselection()[0]]
             }
         except ValueError:
             print("WARNING: The inputted parameters were invalid, please double check them. The training will abort.")
@@ -300,40 +313,48 @@ class GenericGUI(ABC):
 
         # Initialize the ModelTrainer and GUICallback and train the model
         if valid_params:
-            gui_callback = GUICallback(gui_objs, params)
-            self._train_model(gui_callback, params)
+            self._train_model(gui_objs, params)
         self.finished_training()
     
     @abstractmethod
-    def _train_model(self, gui_callback, params):
+    def _train_model(self, gui_objs, params):
         """Runs whatever needs to be ran to train the model"""
         pass
 
 
-class GUICallback(tf.keras.callbacks.Callback):
+class GUICallback(keras.callbacks.Callback):
     """Subclasses keras's callback class to allow tf .fit() to communicate with GUI"""
-    
-    train_loss = []
-    test_loss = []
-    train_acc = []
-    test_acc = []
-    NUM_CLASSES = 3
-    pred_freq = [0] * NUM_CLASSES
-    true_freq = [0] * NUM_CLASSES
-    y_true = None
-    y_pred = None
 
-    def __init__(self, gui_objs, params):
+    NUM_CLASSES = 3
+
+    def __init__(self, path, gui_objs, model_params):
         """Passes list of GUI Objs & model params to inside of Callback to maintain encapsulation"""
         super(GUICallback, self).__init__()
+        self.PATH = path
         self.gui_objs = gui_objs
-        self.EPOCH_PERCENT = 100.0 / float(params["epochs"])
-        self.STEP_PERCENT = 100.0 / float(params["batch_size"] * params["epochs"])
-        self.BATCH_SIZE = params["batch_size"]
-    
+        self.model_params = model_params
+
+        self.train_loss = []
+        self.test_loss = []
+        self.avg_test_loss = []
+
+        self.train_acc = []
+        self.test_acc = []
+        self.avg_test_acc = []
+
+        self.pred_freq = [0] * self.NUM_CLASSES
+        self.true_freq = [0] * self.NUM_CLASSES
+        self.y_true = None
+        self.y_pred = None
+        self.batch_scale = []
+        self.avg_test_scale = []
+
+        self.plot_time = 0
+
     @override
     def set_model(self, model):
         """Initialize variables when model is set"""
+        self.model = model
         self.y_true = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
         self.y_pred = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
     
@@ -345,8 +366,18 @@ class GUICallback(tf.keras.callbacks.Callback):
 
     @override
     def on_train_begin(self, logs=None):
-        """Re-enables the stop training button"""
+        """Performs actions that signal the start of training"""
+        # Re-enable the Start/Stop training button
         self.gui_objs["button"]["state"] = "normal"
+        # Now that 'params' is defined, the number of epochs and number of steps can both be accessed
+        self.EPOCH_PERCENT = 100.0 / float(self.params["epochs"])
+        self.STEP_PERCENT = 100.0 / float(self.params["steps"])
+        # Since this information isn't communicated to the callback, the program reads from 
+        # the file 'split_lens.pkl' to find the length of 'validation_data'
+        os.chdir(f"{self.PATH}08 Other files/")
+        with open("split_lens.pkl", "rb") as f:
+            split_lens = pickle.load(f)
+        self.validation_length = (split_lens["VAL"] // self.model_params["batch_size"]) - 1
 
     @override
     def on_train_end(self, logs=None):
@@ -356,16 +387,30 @@ class GUICallback(tf.keras.callbacks.Callback):
     @override
     def on_train_batch_end(self, batch, logs=None):
         """Updates for training batches"""
+        # Updates general batch
         self.batch_update()
+        # Update batch loss & accuracy
         self.train_loss.append(logs["loss"])
-        self.test_acc.append
+        self.train_acc.append(logs["accuracy"])
+        # Update progress bars
+        self.gui_objs["caption2"]["text"] = f"Batch {batch}"
+        self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
+        self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']:.2f}%"
     
     @override
     def on_test_batch_end(self, batch, logs=None):
-        """Updates for test batches"""
+        """
+        Updates test loss by scaling it proportionally with the training data, such that
+        the end of the validation loss will align with the end of the training loss. 
+        """
+        # Updates general batch
         self.batch_update()
+        # Update batch loss & accuracy
         self.test_loss.append(logs["loss"])
-        self.test_acc.append(logs[logs.keys()[1]])
+        self.test_acc.append(logs["accuracy"])
+        # Update scaler for test loss & accuracy
+        prev_val = self.batch_scale[-1] if len(self.batch_scale) > 0 else 0.0
+        self.batch_scale.append(prev_val + (self.params["steps"] / self.validation_length))
     
     def process_model_output(self, y):
         """Takes the model output and returns which class was outputted"""
@@ -375,13 +420,33 @@ class GUICallback(tf.keras.callbacks.Callback):
         #I cant finish this currently w/o the actual values of y or y_shape so I'll just leave this as a stub until i can train the model
 
     def batch_update(self):
-        """Checks for button press, updates batches progress bar, and adds to prediction histogram"""
+        """Performs all updating actions done for both training and testing batches"""
+        # Start tracking time
+        plot_s = time.time()
+        
+        # Checks for aborting button press
         if self.gui_objs["button"]["text"] == "Start Training":
             self.model.stop_training = True
-        self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
-        self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']}%"
-        # = self.process_model_output(self.y_pred) 
+        #self.process_model_output(self.y_pred) 
         self.gui_objs["plot3"].bar(["S0", "S2", "REM"], self.pred_freq)
+
+        # Update Plot 1 
+        self.gui_objs["plot1"].plot(self.train_loss, color="red")
+        self.gui_objs["plot1"].plot(self.batch_scale, self.test_loss, color="blue")
+        self.gui_objs["plot1"].plot(self.avg_test_scale, self.avg_test_loss, color="blue", linestyle="dashed")
+
+        # Update Plot 2
+        self.gui_objs["plot2"].plot(self.train_acc, color="red")
+        self.gui_objs["plot2"].plot(self.batch_scale, self.test_acc, color="blue")
+        self.gui_objs["plot2"].plot(self.avg_test_scale, self.avg_test_acc, color="blue", linestyle="dashed")
+
+        # Update Canvas
+        self.gui_objs["canvas1"].draw()
+        self.gui_objs["canvas2"].draw()
+        self.gui_objs["canvas3"].draw()
+
+        # Update plot time
+        self.gui_objs["plot_time"]["text"] = f"Plot Time: {(time.time() - plot_s):.2f}s"
 
     @override
     def on_epoch_begin(self, epoch, logs=None):
@@ -391,35 +456,23 @@ class GUICallback(tf.keras.callbacks.Callback):
     @override
     def on_epoch_end(self, epoch, logs=None):
         """Updates plots, progress bars, and text info"""
-        # Update progres bars
-        plot_s = time.time()
-        self.gui_objs["pb2"]["value"] = 0
-        self.gui_objs["value_label2"]["text"] = "Current Progress: 0%"
+
+        # Update epoch accuracy
+        self.avg_test_acc.append(logs["val_accuracy"])
+        self.avg_test_loss.append(logs["val_loss"])
+        prev_val = self.avg_test_scale[-1] if len(self.avg_test_scale) > 0 else 0
+        self.avg_test_scale.append(prev_val + len(self.train_loss) - 1)
+
+        # Update progress bars
+        self.gui_objs["caption"]["text"] = f"Epoch {epoch}"
         self.gui_objs["pb"]["value"] += self.EPOCH_PERCENT
-        self.gui_objs["value_label"]["text"] = f"Current Progress: {self.gui_objs['pb']['value']}%"
-        
+        self.gui_objs["value_label"]["text"] = f"Current Progress: {self.gui_objs['pb']['value']:.2f}%"
+        self.gui_objs["caption2"]["text"] = "Batch 0"
+        self.gui_objs["pb2"]["value"] = 0
+        self.gui_objs["value_label2"]["text"] = f"Current Progress: 0%"
+
         # Update iter speed
-        self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {time.time() - self.epoch_start}s"
-        
-        # Update Plot 1 
-        self.gui_objs["plot1"].scatter(self.train_loss, color="blue")
-        self.gui_objs["plot1"].plot(self.train_loss, color="blue")
-        self.gui_objs["plot1"].scatter(self.test_loss, color="red")
-        self.gui_objs["plot1"].plot(self.test_loss, color="red")
-
-        # Update Plot 2
-        self.gui_objs["plot2"].scatter(self.train_acc, color="blue")
-        self.gui_objs["plot2"].plot(self.train_acc, color="blue")
-        self.gui_objs["plot2"].scatter(self.test_acc, color="red")
-        self.gui_objs["plot2"].plot(self.test_acc, color="red")
-
-        # Update Canvas
-        self.gui_objs["canvas1"].draw()
-        self.gui_objs["canvas2"].draw()
-        self.gui_objs["canvas3"].draw()
+        self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {time.time() - self.epoch_start}s" # move update to batch, then sum delays
 
         # Clear out histogram values
         self.pred_freq = [0] * self.NUM_CLASSES
-
-        # Update plot time
-        self.gui_objs["plot_time"]["text"] = f"Plot Time: {plot_s - time.time()}s"
