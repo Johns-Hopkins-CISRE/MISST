@@ -151,18 +151,6 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         """Calls the superclass constructor with 'export_dir'"""
         super().__init__(path, "08 Other files", params)
 
-    @override
-    def _preconfigured_callbacks(self) -> dict[str, keras.callbacks.Callback]:
-        """Defines preconfigured callbacks"""
-        # Define TensorBoard callback
-        tensorboard_dir = self.PATH + "08 Other files/TensorBoard/"
-        if not os.path.exists(tensorboard_dir):
-            os.mkdir(tensorboard_dir)
-        log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-
-        return {"tensorboard_callback": tensorboard_callback}
-
     def __convert_optimizer(self, optimizer, learning_rate):
         """Returns the corresponding object for a given optimizer name"""
         match optimizer:
@@ -182,6 +170,33 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                 return keras.optimizers.Nadam(learning_rate=learning_rate)
             case "ftrl":
                 return keras.optimizers.Ftrl(learning_rate=learning_rate)
+
+    def _scheduler(self, epoch: int, lr: float) -> float:
+        """Returns a modified learning rate"""
+        if epoch < 6:
+            return lr
+        elif epoch < 15:
+            return 5e-5
+        else:
+            return 1e-5
+
+    @override
+    def _preconfigured_callbacks(self) -> dict[str, keras.callbacks.Callback]:
+        """Defines preconfigured callbacks"""
+        # Define TensorBoard callback
+        tensorboard_dir = self.PATH + "08 Other files/TensorBoard/"
+        if not os.path.exists(tensorboard_dir):
+            os.mkdir(tensorboard_dir)
+        log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+        # Learning Rate Scheduler
+        scheduler_callback  = keras.callbacks.LearningRateScheduler(self._scheduler)
+
+        return {
+            "tensorboard_callback": tensorboard_callback,
+            "scheduler_callback": scheduler_callback
+        }
 
     @override
     def _import_data(self) -> GeneratorDataset | ArrayDataset: 

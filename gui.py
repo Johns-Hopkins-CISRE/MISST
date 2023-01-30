@@ -11,6 +11,7 @@ import threading
 import keras
 import pickle
 import os
+import numpy as np
 import tkinter as tk
 import tensorflow as tf
 from tkinter import ttk
@@ -64,7 +65,7 @@ class GenericGUI(ABC):
         self.canvas2.draw()
         self.canvas2.get_tk_widget().pack(side="top", expand=True, fill="both", pady=10)
         fig3 = Figure(figsize = (5, 2), dpi = 105)
-        self.plot3= fig3.add_subplot(111)
+        self.plot3 = fig3.add_subplot(111)
         self.plot3.set_title("Prediction Distribution (Train + Test)")
         self.plot3.set_xlabel("Class")
         self.plot3.set_ylabel("Num Predictions")
@@ -233,8 +234,8 @@ class GenericGUI(ABC):
         self.plot3.clear()
         self.pb["value"] = 0
         self.pb2["value"] = 0
-        self.caption = "Epoch 0"
-        self.caption2 = "Batch 0"
+        self.caption["text"] = "Epoch 0"
+        self.caption2["text"] = "Batch 0"
         self.value_label["text"] = "Current Progress: 0%"
         self.value_label2["text"] = "Current Progress: 0%"
 
@@ -336,37 +337,53 @@ class GUICallback(keras.callbacks.Callback):
 
         self.train_loss = []
         self.test_loss = []
-        self.avg_test_loss = []
 
         self.train_acc = []
         self.test_acc = []
-        self.avg_test_acc = []
 
-        self.pred_freq = [0] * self.NUM_CLASSES
-        self.true_freq = [0] * self.NUM_CLASSES
-        self.y_true = None
-        self.y_pred = None
+        self.error_freq = {
+            "TRAIN": [0] * self.NUM_CLASSES,
+            "VAL": [0] * self.NUM_CLASSES
+        }
+        self.tr_pred = None
+        self.tr_true = None
+        self.val_pred = None
+        self.val_true = None
+
+        self.current_mode = "TRAIN"
+
         self.batch_scale = []
-        self.avg_test_scale = []
 
         self.plot_time = 0
 
     @override
     def set_model(self, model):
-        """Initialize variables when model is set"""
+        """Creates empty Tensors to represent model outputs, allows for accessing these Tensors once defined"""
         self.model = model
-        self.y_true = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
-        self.y_pred = tf.Variable(float("nan"), dtype=model.output.dtype, shape=tf.TensorShape(None))
-    
+        tf_nan = lambda x: tf.Variable(float("nan"), dtype=x, shape=tf.TensorShape(None))
+        self.tr_pred = tf_nan(model.output.dtype)
+        self.tr_true = tf_nan(model.output.dtype)
+        self.val_pred = tf_nan(model.output.dtype)
+        self.val_true = tf_nan(model.output.dtype)
+
+    @tf.autograph.experimental.do_not_convert
     def pred_metric(self, y_true, y_pred):
-        """Fake metric that gets model predictions"""
-        self.y_true.assign(y_true)
-        self.y_pred.assign(y_pred)
+        """Fake metric that gets model predictions, decorator silences warnings"""
+        # Updates error bars
+        match self.current_mode:
+            case "TRAIN":
+                self.tr_pred.assign(y_pred)
+                self.tr_true.assign(y_true)
+            case "VAL":
+                self.val_pred.assign(y_pred)
+                self.val_true.assign(y_true)
         return 0
 
     @override
     def on_train_begin(self, logs=None):
         """Performs actions that signal the start of training"""
+        # Change Epoch label to indicate start of training
+        self.gui_objs["caption"]["text"] = "Epoch 1"
         # Re-enable the Start/Stop training button
         self.gui_objs["button"]["state"] = "normal"
         # Now that 'params' is defined, the number of epochs and number of steps can both be accessed
@@ -381,8 +398,8 @@ class GUICallback(keras.callbacks.Callback):
 
     @override
     def on_train_end(self, logs=None):
-        """Delete the y_true and y_pred to clear up memory"""
-        del self.y_true, self.y_pred
+        """Deletes leftover Tensors"""
+        del self.tr_pred, self.tr_true, self.val_pred, self.val_true
 
     @override
     def on_train_batch_end(self, batch, logs=None):
@@ -393,10 +410,15 @@ class GUICallback(keras.callbacks.Callback):
         self.train_loss.append(logs["loss"])
         self.train_acc.append(logs["accuracy"])
         # Update progress bars
-        self.gui_objs["caption2"]["text"] = f"Batch {batch}"
+        self.gui_objs["caption2"]["text"] = f"Batch {batch + 1}"
         self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
         self.gui_objs["value_label2"]["text"] = f"Current Progress: {self.gui_objs['pb2']['value']:.2f}%"
     
+    @override
+    def on_test_begin(self, logs=None):
+        """Sets current mode to 'VAL' for metric"""
+        self.current_mode = "VAL"
+
     @override
     def on_test_batch_end(self, batch, logs=None):
         """
@@ -411,13 +433,6 @@ class GUICallback(keras.callbacks.Callback):
         # Update scaler for test loss & accuracy
         prev_val = self.batch_scale[-1] if len(self.batch_scale) > 0 else 0.0
         self.batch_scale.append(prev_val + (self.params["steps"] / self.validation_length))
-    
-    def process_model_output(self, y):
-        """Takes the model output and returns which class was outputted"""
-        print("stub")
-        print(f"y: {y.numpy()}")
-        print(f"y shape: {y.numpy().shape}")
-        #I cant finish this currently w/o the actual values of y or y_shape so I'll just leave this as a stub until i can train the model
 
     def batch_update(self):
         """Performs all updating actions done for both training and testing batches"""
@@ -427,18 +442,27 @@ class GUICallback(keras.callbacks.Callback):
         # Checks for aborting button press
         if self.gui_objs["button"]["text"] == "Start Training":
             self.model.stop_training = True
-        #self.process_model_output(self.y_pred) 
-        self.gui_objs["plot3"].bar(["S0", "S2", "REM"], self.pred_freq)
+
+        # Process predictions & true values of model
+        y_error = self._process_model_outputs(self.current_mode)
+        add_step = 1 if self.current_mode == "TRAIN" else self.params["steps"] / self.validation_length
+        for category in y_error:
+            self.error_freq[self.current_mode][category] += add_step
+
+        # Plot classes with error
+        x_bar = ["S0", "S2", "REM"]
+        x_axis_bar = np.arange(len(x_bar))
+        self.gui_objs["plot3"].bar(x_axis_bar - 0.2, self.error_freq["TRAIN"], width=0.4, color="red")
+        self.gui_objs["plot3"].bar(x_axis_bar + 0.2, self.error_freq["VAL"], width=0.4, color="blue")
+        self.gui_objs["plot3"].set_xticks(ticks=x_axis_bar, labels=x_bar, minor=False)
 
         # Update Plot 1 
         self.gui_objs["plot1"].plot(self.train_loss, color="red")
         self.gui_objs["plot1"].plot(self.batch_scale, self.test_loss, color="blue")
-        self.gui_objs["plot1"].plot(self.avg_test_scale, self.avg_test_loss, color="blue", linestyle="dashed")
 
         # Update Plot 2
         self.gui_objs["plot2"].plot(self.train_acc, color="red")
         self.gui_objs["plot2"].plot(self.batch_scale, self.test_acc, color="blue")
-        self.gui_objs["plot2"].plot(self.avg_test_scale, self.avg_test_acc, color="blue", linestyle="dashed")
 
         # Update Canvas
         self.gui_objs["canvas1"].draw()
@@ -448,26 +472,35 @@ class GUICallback(keras.callbacks.Callback):
         # Update plot time
         self.gui_objs["plot_time"]["text"] = f"Plot Time: {(time.time() - plot_s):.2f}s"
 
+    def _process_model_outputs(self, mode):
+        """Takes y_pred and y_true Tensors and returns array of incorrect classifications"""
+        match mode:
+            case "TRAIN":
+                y_pred = self.tr_pred
+                y_true = self.tr_true
+            case "VAL":
+                y_pred = self.val_pred
+                y_true = self.val_true
+        y_pred = np.array([np.argmax(pred) for pred in y_pred.numpy()])
+        y_true = y_true.numpy().flatten().astype(int)
+        y_error = y_true[y_pred != y_true]
+        return y_error
+
     @override
     def on_epoch_begin(self, epoch, logs=None):
         """Records starting time for iteration time in seconds"""
         self.epoch_start = time.time()
+        # Sets current mode to 'TRAIN' for metric
+        self.current_mode = "TRAIN"
     
     @override
     def on_epoch_end(self, epoch, logs=None):
         """Updates plots, progress bars, and text info"""
-
-        # Update epoch accuracy
-        self.avg_test_acc.append(logs["val_accuracy"])
-        self.avg_test_loss.append(logs["val_loss"])
-        prev_val = self.avg_test_scale[-1] if len(self.avg_test_scale) > 0 else 0
-        self.avg_test_scale.append(prev_val + len(self.train_loss) - 1)
-
         # Update progress bars
-        self.gui_objs["caption"]["text"] = f"Epoch {epoch}"
+        self.gui_objs["caption"]["text"] = f"Epoch {epoch + 2}"
         self.gui_objs["pb"]["value"] += self.EPOCH_PERCENT
         self.gui_objs["value_label"]["text"] = f"Current Progress: {self.gui_objs['pb']['value']:.2f}%"
-        self.gui_objs["caption2"]["text"] = "Batch 0"
+        self.gui_objs["caption2"]["text"] = "Batch 1"
         self.gui_objs["pb2"]["value"] = 0
         self.gui_objs["value_label2"]["text"] = f"Current Progress: 0%"
 
@@ -475,4 +508,11 @@ class GUICallback(keras.callbacks.Callback):
         self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {time.time() - self.epoch_start}s" # move update to batch, then sum delays
 
         # Clear out histogram values
-        self.pred_freq = [0] * self.NUM_CLASSES
+        self.error_freq = {
+            "TRAIN": [0] * self.NUM_CLASSES,
+            "VAL": [0] * self.NUM_CLASSES
+        }
+        self.gui_objs["plot3"].cla()
+        self.gui_objs["plot3"].set_title("Prediction Distribution (Train + Test)")
+        self.gui_objs["plot3"].set_xlabel("Class")
+        self.gui_objs["plot3"].set_ylabel("Num Predictions")
