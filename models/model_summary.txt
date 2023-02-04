@@ -1,0 +1,333 @@
+Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ input_2 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ input_3 (InputLayer)           [(16, 1000, 1)]      0           []                               
+                                                                                                  
+ batch_normalization (BatchNorm  (16, 1000, 1)       4           ['input_1[0][0]']                
+ alization)                                                                                       
+                                                                                                  
+ batch_normalization_11 (BatchN  (16, 1000, 1)       4           ['input_2[0][0]']                
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_22 (BatchN  (16, 1000, 1)       4           ['input_3[0][0]']                
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu (ReLU)                   (16, 1000, 1)        0           ['batch_normalization[0][0]']    
+                                                                                                  
+ re_lu_11 (ReLU)                (16, 1000, 1)        0           ['batch_normalization_11[0][0]'] 
+                                                                                                  
+ re_lu_22 (ReLU)                (16, 1000, 1)        0           ['batch_normalization_22[0][0]'] 
+                                                                                                  
+ dropout (Dropout)              (16, 1000, 1)        0           ['re_lu[0][0]']                  
+                                                                                                  
+ dropout_10 (Dropout)           (16, 1000, 1)        0           ['re_lu_11[0][0]']               
+                                                                                                  
+ dropout_20 (Dropout)           (16, 1000, 1)        0           ['re_lu_22[0][0]']               
+                                                                                                  
+ conv1d (Conv1D)                (16, 1000, 6)        18          ['dropout[0][0]']                
+                                                                                                  
+ conv1d_10 (Conv1D)             (16, 1000, 6)        18          ['dropout_10[0][0]']             
+                                                                                                  
+ conv1d_20 (Conv1D)             (16, 1000, 6)        18          ['dropout_20[0][0]']             
+                                                                                                  
+ batch_normalization_1 (BatchNo  (16, 1000, 6)       24          ['conv1d[0][0]']                 
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_12 (BatchN  (16, 1000, 6)       24          ['conv1d_10[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_23 (BatchN  (16, 1000, 6)       24          ['conv1d_20[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_1 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_1[0][0]']  
+                                                                                                  
+ re_lu_12 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_12[0][0]'] 
+                                                                                                  
+ re_lu_23 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_23[0][0]'] 
+                                                                                                  
+ dropout_1 (Dropout)            (16, 1000, 6)        0           ['re_lu_1[0][0]']                
+                                                                                                  
+ dropout_11 (Dropout)           (16, 1000, 6)        0           ['re_lu_12[0][0]']               
+                                                                                                  
+ dropout_21 (Dropout)           (16, 1000, 6)        0           ['re_lu_23[0][0]']               
+                                                                                                  
+ conv1d_1 (Conv1D)              (16, 1000, 6)        78          ['dropout_1[0][0]']              
+                                                                                                  
+ conv1d_11 (Conv1D)             (16, 1000, 6)        78          ['dropout_11[0][0]']             
+                                                                                                  
+ conv1d_21 (Conv1D)             (16, 1000, 6)        78          ['dropout_21[0][0]']             
+                                                                                                  
+ batch_normalization_2 (BatchNo  (16, 1000, 6)       24          ['conv1d_1[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_13 (BatchN  (16, 1000, 6)       24          ['conv1d_11[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_24 (BatchN  (16, 1000, 6)       24          ['conv1d_21[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_2 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_2[0][0]']  
+                                                                                                  
+ re_lu_13 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_13[0][0]'] 
+                                                                                                  
+ re_lu_24 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_24[0][0]'] 
+                                                                                                  
+ dropout_2 (Dropout)            (16, 1000, 6)        0           ['re_lu_2[0][0]']                
+                                                                                                  
+ dropout_12 (Dropout)           (16, 1000, 6)        0           ['re_lu_13[0][0]']               
+                                                                                                  
+ dropout_22 (Dropout)           (16, 1000, 6)        0           ['re_lu_24[0][0]']               
+                                                                                                  
+ conv1d_2 (Conv1D)              (16, 1000, 6)        78          ['dropout_2[0][0]']              
+                                                                                                  
+ conv1d_12 (Conv1D)             (16, 1000, 6)        78          ['dropout_12[0][0]']             
+                                                                                                  
+ conv1d_22 (Conv1D)             (16, 1000, 6)        78          ['dropout_22[0][0]']             
+                                                                                                  
+ batch_normalization_3 (BatchNo  (16, 1000, 6)       24          ['conv1d_2[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_14 (BatchN  (16, 1000, 6)       24          ['conv1d_12[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_25 (BatchN  (16, 1000, 6)       24          ['conv1d_22[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_3 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_3[0][0]']  
+                                                                                                  
+ re_lu_14 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_14[0][0]'] 
+                                                                                                  
+ re_lu_25 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_25[0][0]'] 
+                                                                                                  
+ dropout_3 (Dropout)            (16, 1000, 6)        0           ['re_lu_3[0][0]']                
+                                                                                                  
+ dropout_13 (Dropout)           (16, 1000, 6)        0           ['re_lu_14[0][0]']               
+                                                                                                  
+ dropout_23 (Dropout)           (16, 1000, 6)        0           ['re_lu_25[0][0]']               
+                                                                                                  
+ conv1d_3 (Conv1D)              (16, 1000, 6)        78          ['dropout_3[0][0]']              
+                                                                                                  
+ conv1d_13 (Conv1D)             (16, 1000, 6)        78          ['dropout_13[0][0]']             
+                                                                                                  
+ conv1d_23 (Conv1D)             (16, 1000, 6)        78          ['dropout_23[0][0]']             
+                                                                                                  
+ batch_normalization_4 (BatchNo  (16, 1000, 6)       24          ['conv1d_3[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_15 (BatchN  (16, 1000, 6)       24          ['conv1d_13[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_26 (BatchN  (16, 1000, 6)       24          ['conv1d_23[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_4 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_4[0][0]']  
+                                                                                                  
+ re_lu_15 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_15[0][0]'] 
+                                                                                                  
+ re_lu_26 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_26[0][0]'] 
+                                                                                                  
+ dropout_4 (Dropout)            (16, 1000, 6)        0           ['re_lu_4[0][0]']                
+                                                                                                  
+ dropout_14 (Dropout)           (16, 1000, 6)        0           ['re_lu_15[0][0]']               
+                                                                                                  
+ dropout_24 (Dropout)           (16, 1000, 6)        0           ['re_lu_26[0][0]']               
+                                                                                                  
+ conv1d_4 (Conv1D)              (16, 1000, 6)        78          ['dropout_4[0][0]']              
+                                                                                                  
+ conv1d_14 (Conv1D)             (16, 1000, 6)        78          ['dropout_14[0][0]']             
+                                                                                                  
+ conv1d_24 (Conv1D)             (16, 1000, 6)        78          ['dropout_24[0][0]']             
+                                                                                                  
+ add (Add)                      (16, 1000, 6)        0           ['input_1[0][0]',                
+                                                                  'conv1d_4[0][0]']               
+                                                                                                  
+ add_2 (Add)                    (16, 1000, 6)        0           ['input_2[0][0]',                
+                                                                  'conv1d_14[0][0]']              
+                                                                                                  
+ add_4 (Add)                    (16, 1000, 6)        0           ['input_3[0][0]',                
+                                                                  'conv1d_24[0][0]']              
+                                                                                                  
+ batch_normalization_5 (BatchNo  (16, 1000, 6)       24          ['add[0][0]']                    
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_16 (BatchN  (16, 1000, 6)       24          ['add_2[0][0]']                  
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_27 (BatchN  (16, 1000, 6)       24          ['add_4[0][0]']                  
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_5 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_5[0][0]']  
+                                                                                                  
+ re_lu_16 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_16[0][0]'] 
+                                                                                                  
+ re_lu_27 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_27[0][0]'] 
+                                                                                                  
+ dropout_5 (Dropout)            (16, 1000, 6)        0           ['re_lu_5[0][0]']                
+                                                                                                  
+ dropout_15 (Dropout)           (16, 1000, 6)        0           ['re_lu_16[0][0]']               
+                                                                                                  
+ dropout_25 (Dropout)           (16, 1000, 6)        0           ['re_lu_27[0][0]']               
+                                                                                                  
+ conv1d_5 (Conv1D)              (16, 1000, 6)        78          ['dropout_5[0][0]']              
+                                                                                                  
+ conv1d_15 (Conv1D)             (16, 1000, 6)        78          ['dropout_15[0][0]']             
+                                                                                                  
+ conv1d_25 (Conv1D)             (16, 1000, 6)        78          ['dropout_25[0][0]']             
+                                                                                                  
+ batch_normalization_6 (BatchNo  (16, 1000, 6)       24          ['conv1d_5[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_17 (BatchN  (16, 1000, 6)       24          ['conv1d_15[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_28 (BatchN  (16, 1000, 6)       24          ['conv1d_25[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_6 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_6[0][0]']  
+                                                                                                  
+ re_lu_17 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_17[0][0]'] 
+                                                                                                  
+ re_lu_28 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_28[0][0]'] 
+                                                                                                  
+ dropout_6 (Dropout)            (16, 1000, 6)        0           ['re_lu_6[0][0]']                
+                                                                                                  
+ dropout_16 (Dropout)           (16, 1000, 6)        0           ['re_lu_17[0][0]']               
+                                                                                                  
+ dropout_26 (Dropout)           (16, 1000, 6)        0           ['re_lu_28[0][0]']               
+                                                                                                  
+ conv1d_6 (Conv1D)              (16, 1000, 6)        78          ['dropout_6[0][0]']              
+                                                                                                  
+ conv1d_16 (Conv1D)             (16, 1000, 6)        78          ['dropout_16[0][0]']             
+                                                                                                  
+ conv1d_26 (Conv1D)             (16, 1000, 6)        78          ['dropout_26[0][0]']             
+                                                                                                  
+ batch_normalization_7 (BatchNo  (16, 1000, 6)       24          ['conv1d_6[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_18 (BatchN  (16, 1000, 6)       24          ['conv1d_16[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_29 (BatchN  (16, 1000, 6)       24          ['conv1d_26[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_7 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_7[0][0]']  
+                                                                                                  
+ re_lu_18 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_18[0][0]'] 
+                                                                                                  
+ re_lu_29 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_29[0][0]'] 
+                                                                                                  
+ dropout_7 (Dropout)            (16, 1000, 6)        0           ['re_lu_7[0][0]']                
+                                                                                                  
+ dropout_17 (Dropout)           (16, 1000, 6)        0           ['re_lu_18[0][0]']               
+                                                                                                  
+ dropout_27 (Dropout)           (16, 1000, 6)        0           ['re_lu_29[0][0]']               
+                                                                                                  
+ conv1d_7 (Conv1D)              (16, 1000, 6)        78          ['dropout_7[0][0]']              
+                                                                                                  
+ conv1d_17 (Conv1D)             (16, 1000, 6)        78          ['dropout_17[0][0]']             
+                                                                                                  
+ conv1d_27 (Conv1D)             (16, 1000, 6)        78          ['dropout_27[0][0]']             
+                                                                                                  
+ batch_normalization_8 (BatchNo  (16, 1000, 6)       24          ['conv1d_7[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_19 (BatchN  (16, 1000, 6)       24          ['conv1d_17[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_30 (BatchN  (16, 1000, 6)       24          ['conv1d_27[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_8 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_8[0][0]']  
+                                                                                                  
+ re_lu_19 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_19[0][0]'] 
+                                                                                                  
+ re_lu_30 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_30[0][0]'] 
+                                                                                                  
+ dropout_8 (Dropout)            (16, 1000, 6)        0           ['re_lu_8[0][0]']                
+                                                                                                  
+ dropout_18 (Dropout)           (16, 1000, 6)        0           ['re_lu_19[0][0]']               
+                                                                                                  
+ dropout_28 (Dropout)           (16, 1000, 6)        0           ['re_lu_30[0][0]']               
+                                                                                                  
+ conv1d_8 (Conv1D)              (16, 1000, 6)        78          ['dropout_8[0][0]']              
+                                                                                                  
+ conv1d_18 (Conv1D)             (16, 1000, 6)        78          ['dropout_18[0][0]']             
+                                                                                                  
+ conv1d_28 (Conv1D)             (16, 1000, 6)        78          ['dropout_28[0][0]']             
+                                                                                                  
+ batch_normalization_9 (BatchNo  (16, 1000, 6)       24          ['conv1d_8[0][0]']               
+ rmalization)                                                                                     
+                                                                                                  
+ batch_normalization_20 (BatchN  (16, 1000, 6)       24          ['conv1d_18[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_31 (BatchN  (16, 1000, 6)       24          ['conv1d_28[0][0]']              
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_9 (ReLU)                 (16, 1000, 6)        0           ['batch_normalization_9[0][0]']  
+                                                                                                  
+ re_lu_20 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_20[0][0]'] 
+                                                                                                  
+ re_lu_31 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_31[0][0]'] 
+                                                                                                  
+ dropout_9 (Dropout)            (16, 1000, 6)        0           ['re_lu_9[0][0]']                
+                                                                                                  
+ dropout_19 (Dropout)           (16, 1000, 6)        0           ['re_lu_20[0][0]']               
+                                                                                                  
+ dropout_29 (Dropout)           (16, 1000, 6)        0           ['re_lu_31[0][0]']               
+                                                                                                  
+ conv1d_9 (Conv1D)              (16, 1000, 6)        78          ['dropout_9[0][0]']              
+                                                                                                  
+ conv1d_19 (Conv1D)             (16, 1000, 6)        78          ['dropout_19[0][0]']             
+                                                                                                  
+ conv1d_29 (Conv1D)             (16, 1000, 6)        78          ['dropout_29[0][0]']             
+                                                                                                  
+ add_1 (Add)                    (16, 1000, 6)        0           ['conv1d_4[0][0]',               
+                                                                  'conv1d_9[0][0]']               
+                                                                                                  
+ add_3 (Add)                    (16, 1000, 6)        0           ['conv1d_14[0][0]',              
+                                                                  'conv1d_19[0][0]']              
+                                                                                                  
+ add_5 (Add)                    (16, 1000, 6)        0           ['conv1d_24[0][0]',              
+                                                                  'conv1d_29[0][0]']              
+                                                                                                  
+ batch_normalization_10 (BatchN  (16, 1000, 6)       24          ['add_1[0][0]']                  
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_21 (BatchN  (16, 1000, 6)       24          ['add_3[0][0]']                  
+ ormalization)                                                                                    
+                                                                                                  
+ batch_normalization_32 (BatchN  (16, 1000, 6)       24          ['add_5[0][0]']                  
+ ormalization)                                                                                    
+                                                                                                  
+ re_lu_10 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_10[0][0]'] 
+                                                                                                  
+ re_lu_21 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_21[0][0]'] 
+                                                                                                  
+ re_lu_32 (ReLU)                (16, 1000, 6)        0           ['batch_normalization_32[0][0]'] 
+                                                                                                  
+ concatenate (Concatenate)      (16, 1000, 18)       0           ['re_lu_10[0][0]',               
+                                                                  're_lu_21[0][0]',               
+                                                                  're_lu_32[0][0]']               
+                                                                                                  
+ bidirectional (Bidirectional)  (16, 1000, 400)      350400      ['concatenate[0][0]']            
+                                                                                                  
+ bidirectional_1 (Bidirectional  (16, 400)           961600      ['bidirectional[0][0]']          
+ )                                                                                                
+                                                                                                  
+ dropout_30 (Dropout)           (16, 400)            0           ['bidirectional_1[0][0]']        
+                                                                                                  
+ dense (Dense)                  (16, 320)            128320      ['dropout_30[0][0]']             
+                                                                                                  
+ dense_1 (Dense)                (16, 3)              963         ['dense[0][0]']                  
+                                                                                                  
+==================================================================================================
+Total params: 1,444,175
+Trainable params: 1,443,809
+Non-trainable params: 366
+__________________________________________________________________________________________________

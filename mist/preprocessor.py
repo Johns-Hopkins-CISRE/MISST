@@ -26,14 +26,19 @@ class PreProcessor():
     RECORDING_LEN = 10 # 10 seconds
     DOWNSAMPLING_RATE = 10 # Must be a factor of sample_rate, 10x downsample, 1000 samples per 10 secs
     ANNOTATIONS = { # Must be whole numbers increasing by one
-        "SLEEP-S0": 0,
-        "SLEEP-S2": 1,
+        "SLEEP-S0":  0,
+        "SLEEP-S2":  1,
         "SLEEP-REM": 2
     }
     DATASET_SPLIT = { # Needs to be out of 17
         "TRAIN": 13,
-        "TEST": 2,
-        "VAL": 2
+        "TEST":   2,
+        "VAL":    2
+    }
+    BALANCE_RATIOS = { # The distribution of classes within each split
+        "TRAIN": [1, 2, 1],
+        "TEST":  [1, 1, 1],
+        "VAL":   [1, 1, 1]
     }
     CHANNELS = ["EEG1", "EEG2", "EMGnu"] # Names of PSG channels that will be used
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
@@ -49,10 +54,10 @@ class PreProcessor():
     def import_example_edf(self) -> mne.io.BaseRaw:
         """Returns a single RawEDF for the purpose of determining edf info"""
         try:
-            return mne.io.read_raw_edf(self.PATH + "01 Raw Data/1/BASAL FEMALE B6 280 20211019 LJK - EDF.edf")
+            return mne.io.read_raw_edf(f"{self.PATH}data/raw/1/BASAL FEMALE B6 280 20211019 LJK - EDF.edf")
         except FileNotFoundError:
             raise FileNotFoundError(
-                "The example edf could not be found, try checking the 01 Raw Data directory structure."
+                "The example edf could not be found, try checking the 'raw' directory's structure."
             )
 
     def get_edf_info(self, edf: mne.io.BaseRaw) -> float:
@@ -64,7 +69,7 @@ class PreProcessor():
     def import_and_preprocess(self) -> None:
         """Imports and preprocesses all the training data, then saves them as .npz files"""
         # Get all dirs
-        os.chdir(self.PATH + "01 Raw Data/")
+        os.chdir(f"{self.PATH}data/raw/")
         all_dirs = os.listdir()
 
         # Keep MNE from outputting unnecessary log data
@@ -73,13 +78,13 @@ class PreProcessor():
         # Traverse through sliced directories
         for directory in tqdm(all_dirs, desc=f"Preprocessing All Data", file=sys.stdout):
             # Search directory for edf
-            os.chdir(self.PATH + "01 Raw Data/" + str(directory))
+            os.chdir(f"{self.PATH}data/raw/{directory}/")
             filename = glob.glob("*EDF.edf")
 
             if len(filename) > 0:
                 # Read edf if found
                 filename = filename[0]
-                edf_dir = self.PATH + "01 Raw Data/" + str(directory) + "/" + filename
+                edf_dir = f"{self.PATH}data/raw/{directory}/{filename}/"
                 edf = mne.io.read_raw_edf(edf_dir)
 
                 # Import annotations & remove unnecessary columns
@@ -89,7 +94,7 @@ class PreProcessor():
                 labels = df.to_numpy()
 
                 # Load in mins and maxs, and calculate and save if they don't already exist
-                os.chdir(self.PATH + "08 Other files/")
+                os.chdir(f"{self.PATH}data/")
                 if self.__mins is None and self.__maxs is None:
                     try:
                         minmax = np.load("minmax.npz")
@@ -173,7 +178,7 @@ class PreProcessor():
                 x_norm = self.__normalize(x)
 
                 # Create folder and save data
-                newpath = self.PATH + "08 Other files/Processed/"
+                newpath = f"{self.PATH}data/processed/"
                 self.__use_dir(newpath, delete=False)
                 os.chdir(newpath)
                 np.savez(f"{directory}.npz", x_norm=x_norm, annots=annots, allow_pickle=False)
@@ -256,18 +261,18 @@ class PreProcessor():
         GROUP_LEN = 100
 
         # Create new folder
-        newpath = self.PATH + "08 Other files/Regrouped/"
+        newpath = self.PATH + "data/regrouped/"
         self.__use_dir(newpath)
 
         # Create and save recordings
-        os.chdir(self.PATH + "08 Other files/Processed/")
+        os.chdir(self.PATH + "data/processed/")
         all_files = os.listdir()
         x = []
         y = []
         counter = 0
         for rec_name in tqdm(all_files, desc="Regrouping Recordings"):
             # Add to data queue
-            os.chdir(self.PATH + "08 Other files/Processed/")
+            os.chdir(self.PATH + "data/processed/")
             rec = np.load(rec_name)
             x.extend(rec["x_norm"])
             y.extend(rec["annots"])
@@ -277,7 +282,7 @@ class PreProcessor():
                 x_group = x[:GROUP_LEN]
                 y_group = y[:GROUP_LEN]
                 # Save groups
-                os.chdir(self.PATH + "08 Other files/Regrouped/")
+                os.chdir(self.PATH + "data/regrouped/")
                 np.savez(f"{counter}.npz", x=x_group, y=y_group, allow_pickle=False)
                 counter += 1
                 # Delete group from queue
@@ -290,8 +295,8 @@ class PreProcessor():
     def group_shuffle(self):
         """Shuffles the data group-by-group"""
         # Declare paths & list files
-        src = self.PATH + "08 Other files/Regrouped/"
-        dest = self.PATH + "08 Other files/Shuffled/"
+        src = self.PATH + "data/regrouped/"
+        dest = self.PATH + "data/shuffled/"
         self.__use_dir(dest)
         os.chdir(src)
         num_passes = len(os.listdir()) - 1
@@ -333,8 +338,8 @@ class PreProcessor():
     def split_dataset(self):
         """Splits the dataset into a train, test, and val set"""
         # Declare paths
-        src = self.PATH + "08 Other files/Shuffled/"
-        dest = self.PATH + "08 Other files/Split/"
+        src = self.PATH + "data/shuffled/"
+        dest = self.PATH + "data/split/"
 
         # Create random list of all files to split
         os.chdir(src)
@@ -364,7 +369,7 @@ class PreProcessor():
         split_lens = {}
         for split in splits:
             # Iterate through recordings and sums length of each one
-            os.chdir(f"{self.PATH}08 Other files/Split/{split}/")
+            os.chdir(f"{self.PATH}data/split/{split}/")
             all_recs = os.listdir()
             total_len = 0
             for filename in all_recs:
@@ -374,7 +379,7 @@ class PreProcessor():
             split_lens.update({split: total_len})
         
         # Save data
-        os.chdir(f"{self.PATH}08 Other files/")
+        os.chdir(f"{self.PATH}data/")
         with open("split_lens.pkl", "wb") as f:
             pickle.dump(split_lens, f, protocol=pickle.HIGHEST_PROTOCOL)
             

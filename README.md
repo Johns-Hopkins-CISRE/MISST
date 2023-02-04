@@ -1,4 +1,4 @@
-# Mouse PSG
+# MIST
 
 This Python project uses a unique "Multivariate SDCC-BiLSTM" model to automate the process of polysomnogram grading for mice. 
 

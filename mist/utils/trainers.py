@@ -17,28 +17,13 @@ import socket
 import pickle
 import keras_tuner as kt
 import keras
-import numpy as np
 import os
-from typing import Any
+from typing import Any, Callable
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from tqdm import tqdm
 
-
-@dataclass
-class GeneratorDataset:
-    """Represents generator-based datasets returned by _import_data"""
-    train_gen: keras.utils.Sequence
-    val_gen:   keras.utils.Sequence
-
-
-@dataclass
-class ArrayDataset:
-    """Represents array-based datasets returned by _import_data"""
-    x_train: np.ndarray | list 
-    y_train: np.ndarray | list
-    x_test:  np.ndarray | list 
-    y_test:  np.ndarray | list
+from utils.datasets import GeneratorDataset, ArrayDataset
+from utils.enums import TunerType
     
 
 class BaseTrainer(ABC):
@@ -60,6 +45,7 @@ class BaseTrainer(ABC):
         
         # Configure callbacks
         self.callbacks = self._preconfigured_callbacks()
+        self.metrics = self._preconfigured_metrics()
 
     def __missing_params(self, params) -> list[str]:
         """Returns a list of missing parameters from the input"""
@@ -92,6 +78,21 @@ class BaseTrainer(ABC):
         """
         Returns a list of predefined callbacks. Scope-independent callbacks 
         should be initialized here
+        """
+        pass
+
+    def set_metrics(self, metrics: dict[str, str | keras.metrics.Metric | Callable]):
+        """
+        Appends inputted metric to pre-existing list of metrics. This allows for
+        scope-dependent metrics to be created externally
+        """
+        self.metrics.update(metrics)
+
+    @abstractmethod
+    def _preconfigured_metrics(self) -> dict[str, str | keras.metrics.Metric | Callable]:
+        """
+        Returns a list of predefined metrics. Scope-independent metrics
+        should be initialized here.
         """
         pass
 
@@ -179,15 +180,15 @@ class DistributedTrainer(BaseTrainer, ABC):
 class TunerTrainer(BaseTrainer, ABC):
     """A general-purpose framework for integrating KerasTuner into models"""
 
-    def tuner_train(self, tuner_type: str) -> None:
+    def tuner_train(self, tuner_type: TunerType) -> None:
         """Trains the model w/ KerasTuner"""
         # Declares consts for tuner
         GOAL = "val_accuracy"
-        DIR = f"{self.PATH}{self.EXPORT_DIR}/Tuner Results/"
+        DIR = f"{self.PATH}{self.EXPORT_DIR}/tuner_results/"
         
         # Match input word w/ tuner
         match tuner_type:
-            case "Hyperband":
+            case TunerType.HYPERBAND:
                 tuner = kt.Hyperband(
                     self._tuner_wrapper,
                     objective=GOAL,
@@ -196,7 +197,7 @@ class TunerTrainer(BaseTrainer, ABC):
                     directory=DIR,
                     project_name="Hyperband"
                 )
-            case "Bayesian":
+            case TunerType.BAYESIAN:
                 tuner = kt.BayesianOptimization(
                     self._tuner_wrapper,
                     objective=GOAL,
@@ -232,7 +233,7 @@ class TunerTrainer(BaseTrainer, ABC):
         BAD_KEYS = ["tuner/epochs", "tuner/initial_epoch", "tuner/bracket", "tuner/round"]
         for key in BAD_KEYS: 
             del best_hps[key]
-        with open("best_hyperparams.pkl", "wb") as f:
+        with open("best_hyperparams.pkl", "wb") as f: #TODO MAKE THIS BETTER
             pickle.dump(best_hps, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @abstractmethod

@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""main_model.py: Trains the main Multivariate SDCC-BiLSTM Model"""
+"""main.py: Trains the main Multivariate SDCC-BiLSTM Model"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
-import config
 import time
 import keras
 import random
@@ -15,8 +14,9 @@ import datetime
 import pickle
 import numpy as np
 import keras_tuner as kt
-from dataclasses import dataclass
+import tensorflow as tf
 from overrides import override
+from typing import Any, Callable
 from contextlib import redirect_stdout
 from keras.layers import (
     Conv1D,
@@ -29,18 +29,14 @@ from keras.layers import (
     BatchNormalization,
     Dropout
 )
+# maybe library called utils.enums ??
+from utils.datasets import GeneratorDataset, ArrayDataset
+from utils.enums import Splits
+from utils.trainers import DistributedTrainer, TunerTrainer
 
-from gui import (
-    GenericGUI, 
-    GUICallback
-)
+from project_enums import TrainingModes, ModelType, TuneableParams
 from preprocessor import PreProcessor
-from trainers import (
-    DistributedTrainer, 
-    TunerTrainer,
-    GeneratorDataset,
-    ArrayDataset
-)
+from gui import GenericGUI, GUICallback
 
 
 class DistributedGUI(GenericGUI):
@@ -51,24 +47,30 @@ class DistributedGUI(GenericGUI):
     """
 
     @override
-    def __init__(self, path, mode, tuner_type):
-        """If dist_comp = True, distributed computing will be used"""
+    def __init__(self, path: str, export_dir: str, mode: TrainingModes):
+        """Overrides GenericGUI's init to allow for parameters used by _train_model()"""
         self.MODE = mode
-        self.TUNER_TYPE = tuner_type
+        self.EXPORT_DIR = export_dir
         super().__init__(path)
 
     @override
-    def _train_model(self, gui_objs, params):
+    def _train_model(self, gui_objs: dict[str, Any], params: dict[str, Any]):
         """Trains model based on specified mode"""
-        trainer = ModelTrainer(self.PATH, params)
+        # Create instance of ModelTrainer
+        trainer = ModelTrainer(self.PATH, self.EXPORT_DIR, params)
+
+        # Create callback and intialize trainer w/ callback & metric
         gui_callback = GUICallback(self.PATH, gui_objs, params)
         trainer.set_callbacks({"gui_callback": gui_callback})
+        trainer.set_metrics({"pred_metric": gui_callback.pred_metric})
+        
+        # Trains based on mode
         match self.MODE:
-            case "GUI":
+            case TrainingModes.GUI:
                 trainer.basic_train()
-            case "DIST GUI":
+            case TrainingModes.DIST_GUI:
                 trainer.dist_train()
-            case "TUNER GUI":
+            case TrainingModes.TUNER_GUI:
                 trainer.tuner_train(self.tuner_type)
     
 
@@ -76,7 +78,7 @@ class DataGenerator(keras.utils.Sequence):
     """Sequentially loads saved preprocessed data"""
 
     @override
-    def __init__(self, path, batch_size, split):
+    def __init__(self, path: str, batch_size: int, split: Splits):
         """Initialize global vars"""
         self.PATH = path
         self.BATCH_SIZE = batch_size
@@ -93,7 +95,7 @@ class DataGenerator(keras.utils.Sequence):
         self.num_batches = None
 
         # Find all files
-        os.chdir(f"{self.PATH}08 Other files/Split/{self.SPLIT}/")
+        os.chdir(f"{self.PATH}data/split/{self.SPLIT}/")
         self.all_recs = os.listdir()
         random.shuffle(self.all_recs)
     
@@ -102,10 +104,10 @@ class DataGenerator(keras.utils.Sequence):
         """Returns the number of batches in one epoch"""
         # Only runs when var is not already defined
         if self.num_batches == None:
-            os.chdir(f"{self.PATH}08 Other files/")
+            os.chdir(f"{self.PATH}data/")
             with open("split_lens.pkl", "rb") as f:
                 split_lens = pickle.load(f)
-            num_segments = split_lens[self.SPLIT]
+            num_segments = split_lens[str(self.SPLIT)]
             self.num_batches = (num_segments // self.BATCH_SIZE) - 1
         return self.num_batches
     
@@ -113,7 +115,7 @@ class DataGenerator(keras.utils.Sequence):
     def __getitem__(self, idx):
         """Receives batch num and returns batch"""
         # Change cwd
-        os.chdir(f"{self.PATH}08 Other files/Split/{self.SPLIT}/")
+        os.chdir(f"{self.PATH}data/split/{self.SPLIT}/")
 
         # Check if new data needs to be loaded
         if self.BATCH_SIZE > len(self.x):
@@ -147,44 +149,11 @@ class DataGenerator(keras.utils.Sequence):
 class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
 
-    def __init__(self, path, params):
-        """Calls the superclass constructor with 'export_dir'"""
-        super().__init__(path, "08 Other files", params)
-
-    def __convert_optimizer(self, optimizer, learning_rate):
-        """Returns the corresponding object for a given optimizer name"""
-        match optimizer:
-            case "sgd":
-                return keras.optimizers.SGD(learning_rate=learning_rate)
-            case "rmsprop":
-                return keras.optimizers.RMSprop(learning_rate=learning_rate)
-            case "adam":
-                return keras.optimizers.Adam(learning_rate=learning_rate)
-            case "adadelta":
-                return keras.optimizers.Adadelta(learning_rate=learning_rate)
-            case "adagrad":
-                return keras.optimizers.Adagrad(learning_rate=learning_rate)
-            case "adamax":
-                return keras.optimizers.Adamax(learning_rate=learning_rate)
-            case "nadam":
-                return keras.optimizers.Nadam(learning_rate=learning_rate)
-            case "ftrl":
-                return keras.optimizers.Ftrl(learning_rate=learning_rate)
-
-    def _scheduler(self, epoch: int, lr: float) -> float:
-        """Returns a modified learning rate"""
-        if epoch < 6:
-            return lr
-        elif epoch < 15:
-            return 5e-5
-        else:
-            return 1e-5
-
     @override
     def _preconfigured_callbacks(self) -> dict[str, keras.callbacks.Callback]:
         """Defines preconfigured callbacks"""
         # Define TensorBoard callback
-        tensorboard_dir = self.PATH + "08 Other files/TensorBoard/"
+        tensorboard_dir = f"{self.PATH}data/TensorBoard/"
         if not os.path.exists(tensorboard_dir):
             os.mkdir(tensorboard_dir)
         log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -197,52 +166,28 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
             "tensorboard_callback": tensorboard_callback,
             "scheduler_callback": scheduler_callback
         }
-
+    
     @override
-    def _import_data(self) -> GeneratorDataset | ArrayDataset: 
-        """Creates two generators, one for training and one for validation"""
-        train_gen = DataGenerator(self.PATH, self.params["batch_size"], "TRAIN")
-        val_gen = DataGenerator(self.PATH, self.params["batch_size"], "VAL")
-        return GeneratorDataset(train_gen, val_gen)
+    def _preconfigured_metrics(self) -> dict[str, str | keras.metrics.Metric | Callable]:
+        """Creates default accuracy metric"""
+        accuracy = {"accuracy": keras.metrics.SparseCategoricalAccuracy()}
+        return accuracy
 
-    @override
-    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
-        """Sets the model parameters according to the KerasTuner 'hp' obj"""
-        TUNE_MODE = "MODEL" # "LR" (learning rate), "MODEL" (model architecture)
-        match TUNE_MODE:
-            case "MODEL":
-                self.params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
-                self.params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
-                self.params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
-                self.params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
-                self.params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
-                self.params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
-                self.params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
-            case "LR":
-                self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
-        
-        # Create model
-        model = self._create_model()
-        optimizer = self.__convert_optimizer(self.params["optimizer"], self.params["learning_rate"])
-        model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=["accuracy"])
+    def _scheduler(self, epoch: int, lr: float) -> float:
+        """Returns a modified learning rate"""
+        if epoch < 6:
+            return lr
+        elif epoch < 15:
+            return 5e-5
+        else:
+            return 1e-5
 
-        return model
-
-    @override
-    def _create_model(self) -> keras.Model:
-        """Returns a Keras model, uses strategy to determine batch_size."""
-        
-        start = time.time()
-        print("Started Model Creation")
-
-        # Use preprocessor to get constants
-        preproc = PreProcessor(self.PATH)
+    def _create_sdcc(self, preproc: PreProcessor, batch_size: int) -> keras.Model:
+        """Creates an SDCC-BiLSTM"""
+        # Use preprocessor for getting constants
         RECORDING_LEN = preproc.RECORDING_LEN
         SAMPLE_RATE = preproc.get_edf_info(preproc.import_example_edf())
         NUM_CLASSES = len(preproc.ANNOTATIONS)
-
-        # Determining batch size
-        batch_size = int(self.params["batch_size"])
 
         # Create list of dilations
         KERNEL = 2 # Non-configurable since this was already tested and optimized by WaveNet
@@ -303,9 +248,67 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Create Model
         model = keras.Model(inputs=inputs, outputs=output)
+        
+        return model
+
+    def _create_bottleneck(self, preproc: PreProcessor, batch_size: int) -> keras.Model:
+        """Creates a Bottleneck CNN based on Mignot's paper"""
+        print("stub")
+
+    @override
+    def _import_data(self) -> GeneratorDataset | ArrayDataset: 
+        """Creates two generators, one for training and one for validation"""
+        train_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TRAIN)
+        val_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.VAL)
+        return GeneratorDataset(train_gen, val_gen)
+
+    @override
+    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+        """Sets the model parameters according to the KerasTuner 'hp' obj"""
+        match self.TUNEABLE_PARAMS:
+            case TuneableParams.MODEL:
+                self.params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
+                self.params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
+                self.params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
+                self.params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
+                self.params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
+                self.params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
+                self.params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
+            case TuneableParams.LR:
+                self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
+        
+        # Create model
+        model = self._create_model()
+
+        return model
+
+    @override
+    def _create_model(self) -> keras.Model:
+        """Returns a Keras model, uses strategy to determine batch_size."""
+        start = time.time()
+        print("Started Model Creation")
+
+        # Create instance of preprocessor (will be used for getting constants)
+        preproc = PreProcessor(self.PATH)
+
+        # Determining batch size
+        batch_size = int(self.params["batch_size"])
+
+        # Create model based on specified model type
+        match self.params["model_type"]:
+            case ModelType.SDCC:
+                model = self._create_sdcc(preproc, batch_size)
+            case ModelType.BOTTLENECK:
+                model = self._create_bottleneck(preproc, batch_size)
+
+        # Compile model
+        opt_func = self.params["optimizer"].value
+        optimizer = opt_func(self.params["learning_rate"])
+        metric_list = list(self.metrics.values())
+        model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)
 
         # Save plot of model
-        os.chdir(f"{self.PATH}mouse_psg/")
+        os.chdir(f"{self.PATH}models/")
         keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
 
         # Print out summary of model to txt
@@ -326,65 +329,11 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         not work with distributed training. Any variables used by model.fit must be
         declared and initialized within this scope
         """
-    
-        # Set optimizer
-        optimizer = self.__convert_optimizer(self.params["optimizer"], self.params["learning_rate"])
 
-        # Set metrics depending on whether GUI is enabled or not
-        if "gui_callback" in self.callbacks:
-            metrics = ["accuracy", self.callbacks["gui_callback"].pred_metric]
-        else:
-            metrics = ["accuracy"]
-
-        # Run training w/ or w/o GUI
-        model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy',
-            metrics=metrics)
+        # Run training
+        callback_list = list(self.callbacks.values())
         model.fit(x=data.train_gen, validation_data=(data.val_gen), epochs=self.params["epochs"], 
-            callbacks=list(self.callbacks.values()))
+            callbacks=callback_list)
 
-        model.save(f"{self.PATH}08 Other files/")
+        model.save(f"{self.PATH}models/")
     
-
-if __name__ == "__main__":
-    """Trains the model on the preprocessor.py data"""
-    # Define training parameters
-    TUNER_TYPE = "Hyperband" # "Hyperband", "Bayesian" 
-    LOAD_FROM_TUNER = True # Default is True, set as False to manually configure "params" var
-    params = {
-        # General Hyperparameters
-        "epochs":            50,
-        "batch_size":        16,
-        "learning_rate": 3.2e-4,
-        "optimizer":     "adam",
-        # SDCC
-        "filters":            6,
-        "conv_layers":        5,
-        "sdcc_blocks":        2,
-        # BiLSTM
-        "lstm_nodes":       200,
-        "lstm_layers":        2,
-        # Dense
-        "dense_nodes":      320,
-        "dense_layers":       1,
-    }
-    if LOAD_FROM_TUNER:
-        os.chdir(f"{config.PATH}08 Other files/")
-        with open("best_hyperparams.pkl", "rb") as f:
-            best_hps = pickle.load(f)
-        params.update(best_hps)
-    
-    # Runs training according to declared training method
-    match config.MODE:
-        case "PLAIN":
-            trainer = ModelTrainer(config.PATH, params)
-            trainer.basic_train()
-        case "DIST":
-            trainer = ModelTrainer(config.PATH, params)
-            trainer.dist_train()
-        case "TUNER":
-            trainer = ModelTrainer(config.PATH, params)
-            trainer.tuner_train(TUNER_TYPE)
-        case "GUI" | "DIST GUI" | "TUNER GUI":
-            DistributedGUI(config.PATH, config.MODE, TUNER_TYPE)
-        case other:
-            raise ValueError(f"Variable \"MODE\" is invalid, got val \"{config.MODE}\"")

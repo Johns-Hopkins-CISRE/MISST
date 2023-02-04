@@ -15,10 +15,14 @@ import numpy as np
 import tkinter as tk
 import tensorflow as tf
 from tkinter import ttk
+from typing import Any
 from overrides import override
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from abc import ABC, abstractmethod
+
+from utils.enums import Optimizers
+from project_enums import ModelType
 
 
 class GenericGUI(ABC):
@@ -27,9 +31,10 @@ class GenericGUI(ABC):
     for rapid manual hyperparameter & architecture tuning
     """
 
+    MODEL_TYPES = ["SDCC", "Bottleneck"]
     OPTIMIZER = ["sgd", "rmsprop", "adam", "adadelta", "adagrad", "adamax", "nadam", "ftrl"]
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         """Creates GUI"""
         self.PATH = path
         self.model_is_running = False
@@ -174,10 +179,15 @@ class GenericGUI(ABC):
         self.dense_layers_i = tk.Entry(f3, textvariable=self.dense_layers)
         self.dense_layers_i.grid(row=10, column=1)
 
+        # Model Type Multiple Choice
+        model_type_str = tk.StringVar(value=" ".join(self.MODEL_TYPES))
+        self.mod_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=model_type_str, activestyle="none")
+        self.mod_mc.grid(row=11, column=0, columnspan=1, pady=20)
+
         # Optimizer Multiple Choice
         optimizer_str = tk.StringVar(value=" ".join(self.OPTIMIZER))
         self.op_mc = tk.Listbox(f3, selectmode="single", exportselection=0, listvariable=optimizer_str, activestyle="none")
-        self.op_mc.grid(row=11, column=0, columnspan=2, pady=20)
+        self.op_mc.grid(row=11, column=1, columnspan=1, pady=20)
 
         # Load Default Best Inputs
         buttonborder1 = tk.Frame(f3,
@@ -230,8 +240,8 @@ class GenericGUI(ABC):
         self.ld_button["state"] = "normal"
         self.ci_button["state"] = "normal"
         self.plot1.cla()
-        self.plot2.clear()
-        self.plot3.clear()
+        self.plot2.cla()
+        self.plot3.cla()
         self.pb["value"] = 0
         self.pb2["value"] = 0
         self.caption["text"] = "Epoch 0"
@@ -241,6 +251,7 @@ class GenericGUI(ABC):
 
     def load_defaults(self):
         """Load the default parameters for training the model"""
+        DEFAULT_MODEL = "SDCC"
         DEFAULT_OPTIMIZER = "adam"
         
         self.clear_inputs()
@@ -254,6 +265,7 @@ class GenericGUI(ABC):
         self.lstm_layers_i.insert(0, "2")
         self.dense_i.insert(0, "320")
         self.dense_layers_i.insert(0, "1")
+        self.mod_mc.selection_set(self.MODEL_TYPES.index(DEFAULT_MODEL), self.MODEL_TYPES.index(DEFAULT_MODEL))
         self.op_mc.selection_set(self.OPTIMIZER.index(DEFAULT_OPTIMIZER), self.OPTIMIZER.index(DEFAULT_OPTIMIZER))
     
     def clear_inputs(self):
@@ -268,6 +280,7 @@ class GenericGUI(ABC):
         self.lstm_layers_i.delete(0, tk.END)
         self.dense_i.delete(0, tk.END)
         self.dense_layers_i.delete(0, tk.END)
+        self.mod_mc.selection_clear(0, tk.END)
         self.op_mc.selection_clear(0, tk.END)
 
     def work(self):
@@ -295,11 +308,14 @@ class GenericGUI(ABC):
         # Gets all model parameters from user input
         valid_params = True
         try:
+            model_type = self.MODEL_TYPES[self.mod_mc.curselection()[0]]
+            optimizer = self.OPTIMIZER[self.op_mc.curselection()[0]]
             params = {
                 "epochs": int(self.epochs.get()),
                 "batch_size": int(self.batches.get()),
                 "learning_rate": float(self.lr.get()),
-                "optimizer": self.OPTIMIZER[self.op_mc.curselection()[0]],
+                "model_type": ModelType.convert(model_type),
+                "optimizer": Optimizers.convert(optimizer),
                 "filters": int(self.filters.get()),
                 "conv_layers": int(self.conv.get()),
                 "sdcc_blocks": int(self.sdcc.get()),
@@ -318,7 +334,7 @@ class GenericGUI(ABC):
         self.finished_training()
     
     @abstractmethod
-    def _train_model(self, gui_objs, params):
+    def _train_model(self, gui_objs: dict[str, Any], params: dict[str, Any]):
         """Runs whatever needs to be ran to train the model"""
         pass
 
@@ -391,7 +407,7 @@ class GUICallback(keras.callbacks.Callback):
         self.STEP_PERCENT = 100.0 / float(self.params["steps"])
         # Since this information isn't communicated to the callback, the program reads from 
         # the file 'split_lens.pkl' to find the length of 'validation_data'
-        os.chdir(f"{self.PATH}08 Other files/")
+        os.chdir(f"{self.PATH}data/")
         with open("split_lens.pkl", "rb") as f:
             split_lens = pickle.load(f)
         self.validation_length = (split_lens["VAL"] // self.model_params["batch_size"]) - 1
@@ -408,7 +424,7 @@ class GUICallback(keras.callbacks.Callback):
         self.batch_update()
         # Update batch loss & accuracy
         self.train_loss.append(logs["loss"])
-        self.train_acc.append(logs["accuracy"])
+        self.train_acc.append(logs["sparse_categorical_accuracy"])
         # Update progress bars
         self.gui_objs["caption2"]["text"] = f"Batch {batch + 1}"
         self.gui_objs["pb2"]["value"] += self.STEP_PERCENT
@@ -429,7 +445,7 @@ class GUICallback(keras.callbacks.Callback):
         self.batch_update()
         # Update batch loss & accuracy
         self.test_loss.append(logs["loss"])
-        self.test_acc.append(logs["accuracy"])
+        self.test_acc.append(logs["sparse_categorical_accuracy"])
         # Update scaler for test loss & accuracy
         prev_val = self.batch_scale[-1] if len(self.batch_scale) > 0 else 0.0
         self.batch_scale.append(prev_val + (self.params["steps"] / self.validation_length))
@@ -505,7 +521,7 @@ class GUICallback(keras.callbacks.Callback):
         self.gui_objs["value_label2"]["text"] = f"Current Progress: 0%"
 
         # Update iter speed
-        self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {time.time() - self.epoch_start}s" # move update to batch, then sum delays
+        self.gui_objs["iter_speed"]["text"] = f"Sec/Epoch: {(time.time() - self.epoch_start):.2f}s" # move update to batch, then sum delays
 
         # Clear out histogram values
         self.error_freq = {
