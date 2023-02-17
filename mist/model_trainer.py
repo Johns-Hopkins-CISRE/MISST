@@ -15,6 +15,7 @@ import pickle
 import numpy as np
 import keras_tuner as kt
 import tensorflow as tf
+from enum import Enum
 from overrides import override
 from typing import Any, Callable
 from contextlib import redirect_stdout
@@ -29,9 +30,9 @@ from keras.layers import (
     BatchNormalization,
     Dropout
 )
-# maybe library called utils.enums ??
+
 from utils.datasets import GeneratorDataset, ArrayDataset
-from utils.enums import Splits
+from utils.enum_vals import Splits
 from utils.trainers import DistributedTrainer, TunerTrainer
 
 from project_enums import TrainingModes, ModelType, TuneableParams
@@ -71,7 +72,7 @@ class DistributedGUI(GenericGUI):
             case TrainingModes.DIST_GUI:
                 trainer.dist_train()
             case TrainingModes.TUNER_GUI:
-                trainer.tuner_train(self.tuner_type)
+                trainer.tuner_train()
     
 
 class DataGenerator(keras.utils.Sequence):
@@ -146,6 +147,19 @@ class DataGenerator(keras.utils.Sequence):
         self.y = []
 
 
+class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
+    """Acts as a learning rate scheduler; callback doesn't work w/ KerasTuner"""
+    
+    def __init__(self, initial_learning_rate):
+        """Saves initial lr"""
+        self.initial_learning_rate = initial_learning_rate
+
+    def __call__(self, step):
+        """Called at start of each epoch, returns a modified lr"""
+        # TODO replace this with warmup and anneal cosine lr
+        return self.initial_learning_rate
+
+
 class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
 
@@ -159,13 +173,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-        # Learning Rate Scheduler
-        scheduler_callback  = keras.callbacks.LearningRateScheduler(self._scheduler)
-
-        return {
-            "tensorboard_callback": tensorboard_callback,
-            "scheduler_callback": scheduler_callback
-        }
+        return {"tensorboard_callback": tensorboard_callback}
     
     @override
     def _preconfigured_metrics(self) -> dict[str, str | keras.metrics.Metric | Callable]:
@@ -173,16 +181,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         accuracy = {"accuracy": keras.metrics.SparseCategoricalAccuracy()}
         return accuracy
 
-    def _scheduler(self, epoch: int, lr: float) -> float:
-        """Returns a modified learning rate"""
-        if epoch < 6:
-            return lr
-        elif epoch < 15:
-            return 5e-5
-        else:
-            return 1e-5
-
-    def _create_sdcc(self, preproc: PreProcessor, batch_size: int) -> keras.Model:
+    def _create_sdcc(self, preproc: PreProcessor, batch_size: int, archi_params: dict[str, Any]) -> keras.Model:
         """Creates an SDCC-BiLSTM"""
         # Use preprocessor for getting constants
         RECORDING_LEN = preproc.RECORDING_LEN
@@ -191,7 +190,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Create list of dilations
         KERNEL = 2 # Non-configurable since this was already tested and optimized by WaveNet
-        dilations = [KERNEL ** i for i in range(self.params["conv_layers"])]
+        dilations = [KERNEL ** i for i in range(archi_params["conv_layers"])]
 
         # Defining CNN inputs & layers (Multivariate implementation of WaveNet)
         inputs = []
@@ -201,7 +200,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
             inputs.append(keras.Input(batch_input_shape=(batch_size, int(RECORDING_LEN * SAMPLE_RATE), 1)))
             
             # Creates multiple SDCC blocks connected w/ residual connections
-            for block in range(self.params["sdcc_blocks"]):
+            for block in range(archi_params["sdcc_blocks"]):
                 for ind, rate in enumerate(dilations):
                     if block == 0 and ind == 0:
                         normalize = BatchNormalization()(inputs[-1])
@@ -212,7 +211,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
                     relu = ReLU()(normalize)
                     dropout = Dropout(0.1)(relu)
-                    conv = Conv1D(filters=self.params["filters"], kernel_size=KERNEL, activation="relu", 
+                    conv = Conv1D(filters=archi_params["filters"], kernel_size=KERNEL, activation="relu", 
                         padding="causal", dilation_rate = rate)(dropout)
                 residual = Add()([conv_old, conv]) if block != 0 else Add()([inputs[-1], conv])
                 conv_old = conv
@@ -228,20 +227,20 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         merged = Concatenate(axis=2)(resnet_outputs)
         
         # Uses Stacked-LSTM structure
-        for layer in range(self.params["lstm_layers"]):
-            if layer == 0 and self.params["lstm_layers"] > 1:
-                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(merged)
+        for layer in range(archi_params["lstm_layers"]):
+            if layer == 0 and archi_params["lstm_layers"] > 1:
+                lstm = Bidirectional(LSTM(units=archi_params["lstm_nodes"], return_sequences=True))(merged)
             elif layer == 0:
-                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"]))(merged)
-            elif layer == self.params["lstm_layers"] - 1:
-                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"]))(lstm)
+                lstm = Bidirectional(LSTM(units=archi_params["lstm_nodes"]))(merged)
+            elif layer == archi_params["lstm_layers"] - 1:
+                lstm = Bidirectional(LSTM(units=archi_params["lstm_nodes"]))(lstm)
             else:
-                lstm = Bidirectional(LSTM(units=self.params["lstm_nodes"], return_sequences=True))(lstm)
+                lstm = Bidirectional(LSTM(units=archi_params["lstm_nodes"], return_sequences=True))(lstm)
 
         # Dense layers
-        for layer in range(self.params["dense_layers"]):
+        for layer in range(archi_params["dense_layers"]):
             dropout = Dropout(0.5)(lstm if layer == 0 else dense) 
-            dense = Dense(units=self.params["dense_nodes"], activation="relu")(dropout)
+            dense = Dense(units=archi_params["dense_nodes"], activation="relu")(dropout)
         
         # Output
         output = Dense(units=NUM_CLASSES, activation="softmax")(dense)
@@ -251,10 +250,11 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         
         return model
 
-    def _create_bottleneck(self, preproc: PreProcessor, batch_size: int) -> keras.Model:
-        """Creates a Bottleneck CNN based on Mignot's paper"""
-        print("stub")
-
+    def _create_bottleneck(self, preproc: PreProcessor, batch_size: int, archi_params: dict[str, Any]) -> keras.Model:
+        """Creates a Bottleneck CNN, architecture is based on Mignot's paper"""
+        #TODO add bottleneck cnn
+        ...
+        
     @override
     def _import_data(self) -> GeneratorDataset | ArrayDataset: 
         """Creates two generators, one for training and one for validation"""
@@ -263,27 +263,31 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         return GeneratorDataset(train_gen, val_gen)
 
     @override
-    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+    def _model_creator_wrapper(self, model_type: Enum, hp: kt.HyperParameters, param_to_tune: Any) -> keras.Model:
         """Sets the model parameters according to the KerasTuner 'hp' obj"""
-        match self.TUNEABLE_PARAMS:
+        match param_to_tune:
             case TuneableParams.MODEL:
-                self.params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
-                self.params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
-                self.params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
-                self.params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
-                self.params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
-                self.params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
-                self.params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
+                archi_params = self.params["archi_params"][model_type]
+                if model_type == ModelType.SDCC:
+                    archi_params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
+                    archi_params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
+                    archi_params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
+                    archi_params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
+                    archi_params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
+                    archi_params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
+                    archi_params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
+                elif model_type == ModelType.BOTTLENECK:
+                    ... #TODO add tuning parameters for bottleneck cnn
             case TuneableParams.LR:
                 self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
         
         # Create model
-        model = self._create_model()
+        model = self._create_model(model_type)
 
         return model
 
     @override
-    def _create_model(self) -> keras.Model:
+    def _create_model(self, model_type: Enum) -> keras.Model:
         """Returns a Keras model, uses strategy to determine batch_size."""
         start = time.time()
         print("Started Model Creation")
@@ -295,15 +299,16 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         batch_size = int(self.params["batch_size"])
 
         # Create model based on specified model type
-        match self.params["model_type"]:
+        archi_params = self.params["archi_params"][model_type]
+        match model_type:
             case ModelType.SDCC:
-                model = self._create_sdcc(preproc, batch_size)
+                model = self._create_sdcc(preproc, batch_size, archi_params)
             case ModelType.BOTTLENECK:
-                model = self._create_bottleneck(preproc, batch_size)
+                model = self._create_bottleneck(preproc, batch_size, archi_params)
 
         # Compile model
         opt_func = self.params["optimizer"].value
-        optimizer = opt_func(self.params["learning_rate"])
+        optimizer = opt_func(LRScheduler(self.params["learning_rate"]))
         metric_list = list(self.metrics.values())
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)
 

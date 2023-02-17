@@ -25,23 +25,23 @@ if PREPROCESS_DATA:
     preproc.save_len()
 
 # Defines training parameters
-params = PARAMS
+model_params = MODEL_PARAMS
 if LOAD_TUNER_PARAMS:
     os.chdir(f"{PATH}data/")
     with open("best_hyperparams.pkl", "rb") as f:
         best_hps = pickle.load(f)
-    params.update(best_hps)
+    model_params.update(best_hps)
 
 # Runs training according to declared training method
 match MODE:
     case TrainingModes.PLAIN:
-        trainer = ModelTrainer(PATH, EXPORT_DIR, params)
+        trainer = ModelTrainer(PATH, EXPORT_DIR, model_params)
         trainer.basic_train()
     case TrainingModes.DIST:
-        trainer = ModelTrainer(PATH, EXPORT_DIR, params)
+        trainer = ModelTrainer(PATH, EXPORT_DIR, model_params)
         trainer.dist_train()
     case TrainingModes.TUNER:
-        trainer = ModelTrainer(PATH, EXPORT_DIR, params)
+        trainer = ModelTrainer(PATH, EXPORT_DIR, model_params, TUNER_PARAMS)
         trainer.tuner_train()
     case TrainingModes.GUI | TrainingModes.DIST_GUI | TrainingModes.TUNER_GUI:
         DistributedGUI(PATH, EXPORT_DIR, MODE)

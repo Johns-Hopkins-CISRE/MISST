@@ -18,18 +18,22 @@ import pickle
 import keras_tuner as kt
 import keras
 import os
-from typing import Any, Callable
+
+from enum import Enum
+from typing import Callable
 from abc import ABC, abstractmethod
 from tqdm import tqdm
+from overrides import override
 
+from utils.req_params import ModelParams, TunerParams
 from utils.datasets import GeneratorDataset, ArrayDataset
-from utils.enums import TunerType
-    
+from utils.enum_vals import TunerType
+
 
 class BaseTrainer(ABC):
     """A general-purpose framework that all Trainer classes must follow"""
 
-    def __init__(self, path: str, export_dir: str, params: dict[str, Any]):
+    def __init__(self, path: str, export_dir: str, params: ModelParams):
         """Defines class-level variables that all subclasses can access"""
         # Validate and define path
         if not os.path.isdir(f"{path}{export_dir}/"):
@@ -37,33 +41,17 @@ class BaseTrainer(ABC):
         self.PATH = path
         self.EXPORT_DIR = export_dir
         
-        # Validate and define model parameters
-        missing = self.__missing_params(params)
-        if len(missing) > 0:
-            raise ValueError(f"The inputted 'params' variable was missing the following keys: {missing}.")
+        # Set params var
         self.params = params
-        
+
         # Configure callbacks
         self.callbacks = self._preconfigured_callbacks()
         self.metrics = self._preconfigured_metrics()
 
-    def __missing_params(self, params) -> list[str]:
-        """Returns a list of missing parameters from the input"""
-        missing = []
-        if "epochs" not in params:
-            missing.append("epochs")
-        if "batch_size" not in params:
-            missing.append("batch_size")
-        if "learning_rate" not in params:
-            missing.append("learning_rate")
-        if "optimizer" not in params:
-            missing.append("optimizer")
-        return missing
-    
     def basic_train(self) -> None:
         """Trains the model w/o any additional functionality"""
         data = self._import_data()
-        model = self._create_model()
+        model = self._create_model(self.params["model_type"])
         self._train_model(model, data)
 
     def set_callbacks(self, callbacks: dict[str, keras.callbacks.Callback]) -> None:
@@ -102,7 +90,7 @@ class BaseTrainer(ABC):
         pass
     
     @abstractmethod
-    def _create_model(self) -> keras.Model:
+    def _create_model(self, model_type: Enum) -> keras.Model:
         """Returns a Keras.Model instance that can be fed directly into '_train_model'"""
         pass
 
@@ -146,7 +134,7 @@ class DistributedTrainer(BaseTrainer, ABC):
                     if self._is_port_open(ip, port):
                         valid_port = port
                         break
-                if valid_port is None:
+                if valid_port == None:
                     raise RuntimeError(f"Could not find a valid port for ip: \"{ip}\".")
                 valid_ports[node_type].append(valid_port)
 
@@ -180,29 +168,60 @@ class DistributedTrainer(BaseTrainer, ABC):
 class TunerTrainer(BaseTrainer, ABC):
     """A general-purpose framework for integrating KerasTuner into models"""
 
-    def tuner_train(self, tuner_type: TunerType) -> None:
+    @override
+    def __init__(self, path: str, export_dir: str, params: ModelParams, tuner_params: TunerParams = None):
+        """Includes the tuner_params variable as part of the constructor's arguments"""
+        # Runs the normal BaseTrainer class constructor
+        super().__init__(path, export_dir, params)
+        
+        # Defines tuner_param var
+        self.tuner_params = tuner_params
+
+    def tuner_train(self) -> None:
         """Trains the model w/ KerasTuner"""
+        # Verify that tuner_params has been entered
+        if self.tuner_params == None:
+            raise ValueError(
+                """
+                TunerTrainer's 'tuner_train()' method cannot be executed without the 'tuner_params' variable. 
+                The 'tuner_params' variable should be entered in the constructor of TunerTrainer
+                """
+            )
+
+        # Ensure that a valid goal is picked
+        PREFIXES = ["val_"]
+        stripped = self._remove_prefixes(self.tuner_params["goal"], PREFIXES)
+        valid_goal = any(stripped == metric.name for metric in self.metrics.values())
+        if not valid_goal:
+            raise ValueError(
+                f"""
+                'goal' in 'tuner_params' must match with a metric; got goal: '{self.tuner_params['goal']}',
+                but the only metrics were: {[metric.name for metric in self.metrics.values()]}.
+                """
+            )
+
         # Declares consts for tuner
-        GOAL = "val_accuracy"
-        DIR = f"{self.PATH}{self.EXPORT_DIR}/tuner_results/"
+        dir_path = f"{self.PATH}{self.EXPORT_DIR}/{self.tuner_params['dir_name']}/"
         
         # Match input word w/ tuner
-        match tuner_type:
+        match self.tuner_params["tuner_type"]:
             case TunerType.HYPERBAND:
+                tuner_config = self.tuner_params["tuner_configs"][TunerType.HYPERBAND]
                 tuner = kt.Hyperband(
-                    self._tuner_wrapper,
-                    objective=GOAL,
+                    self.__tuner_wrapper,
+                    objective=self.tuner_params["goal"],
                     max_epochs=self.params["epochs"],
-                    factor=3,
-                    directory=DIR,
+                    factor=tuner_config["factor"],
+                    directory=dir_path,
                     project_name="Hyperband"
                 )
             case TunerType.BAYESIAN:
+                tuner_config = self.tuner_params["tuner_configs"][TunerType.BAYESIAN]
                 tuner = kt.BayesianOptimization(
-                    self._tuner_wrapper,
-                    objective=GOAL,
-                    max_trials=20,
-                    directory=DIR,
+                    self.__tuner_wrapper,
+                    objective=self.tuner_params["goal"],
+                    max_trials=self.tuner_config["max_trials"],
+                    directory=dir_path,
                     project_name="Bayesian"
                 )
 
@@ -212,14 +231,14 @@ class TunerTrainer(BaseTrainer, ABC):
 
         # Search with specified tuner
         data = self._import_data()
-        if data is GeneratorDataset:
+        if type(data) == GeneratorDataset:
             tuner.search(
-                x=data.train_gen, 
+                x=data.train_gen,
                 epochs=self.params["epochs"], 
                 validation_data=(data.val_gen), 
                 callbacks=list(self.callbacks.values())
             )
-        elif data is ArrayDataset:
+        elif type(data) == ArrayDataset:
             tuner.search(
                 x=data.x_train, y=data.y_train, 
                 epochs=self.params["epochs"], 
@@ -227,19 +246,41 @@ class TunerTrainer(BaseTrainer, ABC):
                 callbacks=list(self.callbacks.values())
             )
 
-        # Save dictionary of optimal hyperparameters
-        os.chdir(f"{self.PATH}{self.EXPORT_DIR}/")
-        best_hps = tuner.get_best_hyperparameters()[0].values
+        # Process optimized hyperparameters
         BAD_KEYS = ["tuner/epochs", "tuner/initial_epoch", "tuner/bracket", "tuner/round"]
+        best_hps = tuner.get_best_hyperparameters()[0].values
         for key in BAD_KEYS: 
             del best_hps[key]
-        with open("best_hyperparams.pkl", "wb") as f: #TODO MAKE THIS BETTER
+
+        # Save file of best params
+        os.chdir(f"{self.PATH}{self.EXPORT_DIR}/")
+        filename = f"hps_{self.tuner_params['tuner_type']}_{self.params['model_type'].name}_{self.tuner_params['params_to_tune'].name}.pkl"
+        with open(filename, "wb") as f:
             pickle.dump(best_hps, f, protocol=pickle.HIGHEST_PROTOCOL)
 
+    def _remove_prefixes(self, main_str: str, prefixes: list[str]) -> str:
+        """
+        Checks a list of prefixes and, upon finding a single match, 
+        deletes the prefix from a string. A prefix must be at the very 
+        start of the string (index zero)
+        """
+        for prefix in prefixes:
+            if main_str[:len(prefix)] == prefix:
+                main_str = main_str[len(prefix):]
+                break
+        return main_str
+
+    def __tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+        """Passes the tuner_params["param_to_tune"] variable to the _create_model_wrapper() method, thus preserving encapsulation"""
+        model = self._model_creator_wrapper(self.params["model_type"], hp, self.tuner_params["param_to_tune"])
+        return model
+
     @abstractmethod
-    def _tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
+    def _model_creator_wrapper(self, model_type: Enum, hp: kt.HyperParameters, param_to_tune: Enum) -> keras.Model:
         """
         Acts as a wrapper for handling the passing of information 
         between the "hp" object and the "_create_model" method. 
+        The datatype of "param_to_tune" is entirely dependent on the
+        datatype of the value entered into the "tuner_params" variable.
         """
         pass

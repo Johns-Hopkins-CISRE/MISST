@@ -21,7 +21,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from abc import ABC, abstractmethod
 
-from utils.enums import Optimizers
+from utils.enum_vals import Optimizers
 from project_enums import ModelType
 
 

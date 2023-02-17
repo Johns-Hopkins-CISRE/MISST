@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""enums.py: Stores all enums required by BaseTrainer's 'params' dict"""
+"""enum_vals.py: Stores all enums required by Trainer-type Classes' 'params' dict"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
@@ -38,7 +38,7 @@ class Splits(Enum):
     TRAIN = "TRAIN"
     VAL   = "VAL"
     TEST  = "TEST"
-
+    
     def __str__(self):
         """Allows for treating Enum val like any other const"""
         return str(self.value)

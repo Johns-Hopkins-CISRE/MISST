@@ -6,7 +6,6 @@
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
-import config
 import os
 import sys
 import shutil
@@ -17,6 +16,8 @@ import pickle
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+
+import config
 
 
 class PreProcessor():
