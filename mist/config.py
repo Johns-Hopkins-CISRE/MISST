@@ -13,7 +13,7 @@ from project_enums import TrainingModes, ModelType, TuneableParams
 
 # Modify these
 PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MIST/" # Path to project
-MODE = TrainingModes.TUNER # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"
+MODE = TrainingModes.PLAIN # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"
 
 # Don't touch
 EXPORT_DIR = "data" # Default is "data"
@@ -26,7 +26,7 @@ MODEL_PARAMS: ModelParams = {
     "batch_size":    16,
     "learning_rate": 3.2e-4,
     "optimizer":     Optimizers.ADAM,
-    "model_type":    ModelType.SDCC,
+    "model_type":    ModelType.BOTTLENECK,
 
     "archi_params": {
         ModelType.SDCC: {
@@ -40,6 +40,16 @@ MODEL_PARAMS: ModelParams = {
             "dense_nodes":   320,
             "dense_layers":  1,
         },
+        ModelType.BOTTLENECK: {
+            "init_kernel":   16,
+
+            "cnn_blocks":     4,
+            "bn_blocks":      3, # Abbrev. for "Bottleneck"
+            "conv_pattern":   [1,3], # Mirrored: 1,3,4 -> 1,3,4,3,1
+            
+            "filter_mult":    16,  # Filter multiplier
+            "scaling_factor": 4  # Factor by which init val is multiplied and later compensation is applied
+        }
     }
 }
 

@@ -28,7 +28,9 @@ from keras.layers import (
     Add,
     ReLU,
     BatchNormalization,
-    Dropout
+    Dropout,
+    MaxPooling1D,
+    GlobalAveragePooling1D
 )
 
 from utils.datasets import GeneratorDataset, ArrayDataset
@@ -79,11 +81,12 @@ class DataGenerator(keras.utils.Sequence):
     """Sequentially loads saved preprocessed data"""
 
     @override
-    def __init__(self, path: str, batch_size: int, split: Splits):
+    def __init__(self, path: str, batch_size: int, split: Splits, model_type: ModelType):
         """Initialize global vars"""
         self.PATH = path
         self.BATCH_SIZE = batch_size
         self.SPLIT = split
+        self.MODEL_TYPE = model_type
 
         # Current index in list of all_rec
         self.cur_rec = 0 
@@ -129,14 +132,32 @@ class DataGenerator(keras.utils.Sequence):
             self.cur_rec += 1
 
         # Obtain data slice to return
-        slice_x = np.transpose(np.array(self.x[:self.BATCH_SIZE])[:, :, :, np.newaxis], axes=(1, 0, 2, 3))
-        slice_x = [i for i in slice_x] # Convert to list
-        slice_y = np.array(self.y[:self.BATCH_SIZE])
+        slice_x, slice_y = self.x[:self.BATCH_SIZE], self.y[:self.BATCH_SIZE]
+        match self.MODEL_TYPE:
+            case ModelType.SDCC:
+                slice_x, slice_y = self._sdcc_slices(slice_x, slice_y)
+            case ModelType.BOTTLENECK:
+                slice_x, slice_y = self._bn_slices(slice_x, slice_y)
+            case other:
+                raise ValueError("ModelType must have a defined associated DataGenerator method")
 
         # Dispose of old data (start will always be zero)
         self.x = self.x[self.BATCH_SIZE:]
         self.y = self.y[self.BATCH_SIZE:]
 
+        return slice_x, slice_y
+
+    def _sdcc_slices(self, x: np.ndarray, y: np.ndarray) -> tuple[list[np.ndarray], np.ndarray]:
+        """Reshapes the slices of x and y for the SDCC ModelType"""
+        slice_x = np.transpose(np.array(x)[:, :, :, np.newaxis], axes=(1, 0, 2, 3))
+        slice_x = [i for i in slice_x] # Convert to list
+        slice_y = np.array(y)
+        return slice_x, slice_y
+    
+    def _bn_slices(self, x: np.ndarray, y: np.ndarray) -> tuple[list[np.ndarray], np.ndarray]:
+        """Reshapes the slices of x and y for the Bottleneck ModelType"""
+        slice_x = np.transpose(np.array(x), axes=(0, 2, 1))
+        slice_y = np.array(y)
         return slice_x, slice_y
 
     @override
@@ -252,14 +273,76 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
     def _create_bottleneck(self, preproc: PreProcessor, batch_size: int, archi_params: dict[str, Any]) -> keras.Model:
         """Creates a Bottleneck CNN, architecture is based on Mignot's paper"""
-        #TODO add bottleneck cnn
-        ...
+        # Use preprocessor for getting constants
+        RECORDING_LEN = preproc.RECORDING_LEN
+        SAMPLE_RATE = preproc.get_edf_info(preproc.import_example_edf())
+        NUM_CLASSES = len(preproc.ANNOTATIONS)
+
+        # Input layer & first convolution
+        input_layer = keras.Input(batch_input_shape=(batch_size, int(RECORDING_LEN * SAMPLE_RATE), len(preproc.CHANNELS)))
+        init_conv = Conv1D(
+            filters=archi_params["filter_mult"] * archi_params["scaling_factor"], 
+            kernel_size=archi_params["init_kernel"], 
+            activation="relu",
+        )(input_layer)
+
+        # Creates multiple nested CNN modules
+        bouncy_convs = archi_params["conv_pattern"] + archi_params["conv_pattern"][::-1][1:]
+        for cnn_ind in range(archi_params["cnn_blocks"]):
+            pool = MaxPooling1D(pool_size=2, strides=2)(adder if cnn_ind != 0 else init_conv)
+            # Creates multiple residual connections
+            for block_ind in range(archi_params["bn_blocks"]):
+                num_filters = archi_params["filter_mult"] * (cnn_ind + 1)
+                # Create multiple Bottleneck blocks
+                for group_ind, kernel_size in enumerate(bouncy_convs):
+                    if block_ind == 0 and group_ind == 0:
+                        normalize = BatchNormalization()(pool)
+                    elif group_ind == 0:
+                        normalize = BatchNormalization()(adder)
+                    else:
+                        normalize = BatchNormalization()(conv)
+                    # Create ReLU
+                    relu = ReLU()(normalize)
+                    if group_ind == 0:
+                        init_relu = relu
+                    dropout = Dropout(0.1)(relu)
+                    # Create convolution
+                    if group_ind == len(bouncy_convs) - 1:
+                        num_filters *= archi_params["scaling_factor"]
+                    conv = Conv1D(
+                        filters=num_filters,
+                        kernel_size=kernel_size,
+                        activation="relu",
+                        padding="same"
+                    )(dropout)
+                # Uses projection in place of identity block if it's the first layer
+                if block_ind == 0:
+                    init_relu = Conv1D(
+                        filters=num_filters,
+                        kernel_size=bouncy_convs[-1],
+                        activation="relu",
+                        padding="same"
+                    )(init_relu)
+                adder = Add()([conv, init_relu])
         
+        # Flatten
+        normalize = BatchNormalization()(adder)
+        relu = ReLU()(normalize)
+        flat = GlobalAveragePooling1D()(relu)
+
+        # Output
+        output = Dense(units=NUM_CLASSES, activation="softmax")(flat)
+
+        # Create Model
+        model = keras.Model(inputs=input_layer, outputs=output)
+
+        return model
+            
     @override
     def _import_data(self) -> GeneratorDataset | ArrayDataset: 
         """Creates two generators, one for training and one for validation"""
-        train_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TRAIN)
-        val_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.VAL)
+        train_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TRAIN, self.params["model_type"])
+        val_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.VAL, self.params["model_type"])
         return GeneratorDataset(train_gen, val_gen)
 
     @override
