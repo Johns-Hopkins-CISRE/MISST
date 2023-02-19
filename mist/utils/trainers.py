@@ -210,7 +210,7 @@ class TunerTrainer(BaseTrainer, ABC):
                 tuner = kt.Hyperband(
                     self.__tuner_wrapper,
                     objective=self.tuner_params["goal"],
-                    max_epochs=self.params["epochs"],
+                    max_epochs=tuner_config["max_epochs"],
                     factor=tuner_config["factor"],
                     directory=dir_path,
                     project_name="Hyperband"
@@ -254,7 +254,7 @@ class TunerTrainer(BaseTrainer, ABC):
 
         # Save file of best params
         os.chdir(f"{self.PATH}{self.EXPORT_DIR}/")
-        filename = f"hps_{self.tuner_params['tuner_type']}_{self.params['model_type'].name}_{self.tuner_params['params_to_tune'].name}.pkl"
+        filename = f"hps_{self.tuner_params['tuner_type'].name}_{self.params['model_type'].name}_{self.tuner_params['params_to_tune'].name}.pkl"
         with open(filename, "wb") as f:
             pickle.dump(best_hps, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -272,7 +272,7 @@ class TunerTrainer(BaseTrainer, ABC):
 
     def __tuner_wrapper(self, hp: kt.HyperParameters) -> keras.Model:
         """Passes the tuner_params["param_to_tune"] variable to the _create_model_wrapper() method, thus preserving encapsulation"""
-        model = self._model_creator_wrapper(self.params["model_type"], hp, self.tuner_params["param_to_tune"])
+        model = self._model_creator_wrapper(self.params["model_type"], hp, self.tuner_params["params_to_tune"])
         return model
 
     @abstractmethod

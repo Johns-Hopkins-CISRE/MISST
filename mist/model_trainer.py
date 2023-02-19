@@ -175,10 +175,19 @@ class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
         """Saves initial lr"""
         self.initial_learning_rate = initial_learning_rate
 
+    @override
     def __call__(self, step):
         """Called at start of each epoch, returns a modified lr"""
         # TODO replace this with warmup and anneal cosine lr
         return self.initial_learning_rate
+    
+    @override
+    def get_config(self):
+        """Returns the kwargs needed for the constructor of LRScheduler; needed for serialization"""
+        config = {
+            'initial_learning_rate': self.initial_learning_rate,
+        }
+        return config
 
 
 class ModelTrainer(DistributedTrainer, TunerTrainer):
@@ -331,7 +340,8 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         flat = GlobalAveragePooling1D()(relu)
 
         # Output
-        output = Dense(units=NUM_CLASSES, activation="softmax")(flat)
+        dropout = Dropout(0.4)(flat)
+        output = Dense(units=NUM_CLASSES, activation="softmax")(dropout)
 
         # Create Model
         model = keras.Model(inputs=input_layer, outputs=output)
@@ -351,16 +361,20 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         match param_to_tune:
             case TuneableParams.MODEL:
                 archi_params = self.params["archi_params"][model_type]
-                if model_type == ModelType.SDCC:
-                    archi_params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  step=1  )
-                    archi_params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  step=1  )
-                    archi_params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   step=1  )
-                    archi_params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, step=10 )
-                    archi_params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   step=1  )
-                    archi_params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, step=20 )
-                    archi_params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   step=1  )
+                if model_type == ModelType.SDCC: #use prev params as defaults
+                    archi_params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  default=6,   step=1 )
+                    archi_params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  default=5,   step=1 )
+                    archi_params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   default=2,   step=1 )
+                    archi_params["lstm_nodes"]   = hp.Int("lstm_nodes",   min_value=10, max_value=200, default=200, step=10)
+                    archi_params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   default=2,   step=1 )
+                    archi_params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, default=320, step=20)
+                    archi_params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   default=1,   step=1 )
                 elif model_type == ModelType.BOTTLENECK:
-                    ... #TODO add tuning parameters for bottleneck cnn
+                    archi_params["init_kernel"]    = hp.Int("init_kernel",   min_value=12, max_value=20, default=16, step=1)
+                    archi_params["cnn_blocks"]     = hp.Int("cnn_blocks",    min_value=2,  max_value=6,  default=4,  step=1)
+                    archi_params["bn_blocks"]      = hp.Int("bn_blocks",     min_value=1,  max_value=5,  default=3,  step=1)
+                    archi_params["filter_mult"]    = hp.Int("filter_mult",   min_value=4,  max_value=32, default=16, step=4)
+                    archi_params["scaling_factor"] = hp.Int("scaling_factor", min_value=1, max_value=8,  default=4,  step=1)
             case TuneableParams.LR:
                 self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
         

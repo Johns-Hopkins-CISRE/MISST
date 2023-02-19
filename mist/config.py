@@ -19,10 +19,14 @@ MODE = TrainingModes.PLAIN # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER
 EXPORT_DIR = "data" # Default is "data"
 PREPROCESS_DATA = False # Default is False, set as True  to override existing data
 LOAD_TUNER_PARAMS = False # Default is True, set as False to manually configure "params" var
+TUNER_FILE_TO_LOAD = { # Irrelevant if LOAD_TUNER_PARAMS is False
+    "tuner_type":   TunerType.HYPERBAND,
+    "tuned_params": TuneableParams.MODEL
+}
 
 # General Hyperparameters
 MODEL_PARAMS: ModelParams = {
-    "epochs":        50,
+    "epochs":        200,
     "batch_size":    16,
     "learning_rate": 3.2e-4,
     "optimizer":     Optimizers.ADAM,
@@ -41,7 +45,7 @@ MODEL_PARAMS: ModelParams = {
             "dense_layers":  1,
         },
         ModelType.BOTTLENECK: {
-            "init_kernel":   16,
+            "init_kernel":    16,
 
             "cnn_blocks":     4,
             "bn_blocks":      3, # Abbrev. for "Bottleneck"
@@ -55,13 +59,14 @@ MODEL_PARAMS: ModelParams = {
 
 # "TunerTrainer"-specific Parameters
 TUNER_PARAMS: TunerParams = { 
-    "tuner_type":    TunerType.HYPERBAND, 
-    "param_to_tune": TuneableParams.MODEL,
-    "goal":          "val_sparse_categorical_accuracy",
-    "dir_name":      "tuner_results",
+    "tuner_type":     TunerType.HYPERBAND, 
+    "params_to_tune": TuneableParams.MODEL,
+    "goal":           "val_sparse_categorical_accuracy",
+    "dir_name":       "tuner_results",
 
     "tuner_configs": {
         TunerType.HYPERBAND: {
+            "max_epochs": 1,
             "factor": 3
         },
         TunerType.BAYESIAN: {

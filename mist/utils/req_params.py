@@ -23,6 +23,7 @@ class ModelParams(TypedDict):
 
 
 class _HyperbandParams(TypedDict):
+    max_epochs: int
     factor: int
 
 
@@ -38,7 +39,7 @@ class _TunerConfigs(TypedDict):
 class TunerParams(TypedDict):
     """Parameters for model tuning; required by TunerTrainer"""
     tuner_type: TunerType
-    param_to_tune: Enum
+    params_to_tune: Enum
     goal: str
     dir_name: str
     tuner_configs: _TunerConfigs

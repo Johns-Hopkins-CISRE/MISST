@@ -28,9 +28,14 @@ if PREPROCESS_DATA:
 model_params = MODEL_PARAMS
 if LOAD_TUNER_PARAMS:
     os.chdir(f"{PATH}data/")
-    with open("best_hyperparams.pkl", "rb") as f:
+    filename = f"hps_{TUNER_FILE_TO_LOAD['tuner_type'].name}_{model_params['model_type'].name}_{TUNER_FILE_TO_LOAD['tuned_params'].name}.pkl"
+    with open(filename, "rb") as f:
         best_hps = pickle.load(f)
-    model_params.update(best_hps)
+    match TUNER_FILE_TO_LOAD["tuned_params"]:
+        case TuneableParams.MODEL:
+            model_params["archi_params"][model_params["model_type"]].update(best_hps)
+        case TuneableParams.LR:
+            model_params.update(best_hps)
 
 # Runs training according to declared training method
 match MODE:
