@@ -1,25 +1,11 @@
-<h1>This text should be bold, <span style="font-weight:normal">but this text should not</span></h1>
+<h1 align="center">
+  <img src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/logo/Logo%20White.png" alt="MIST's Logo"/ width="30%" height="30%">
+  <br>
+  A Murine-based Intelligent Staging Tool
+  <br>
+  <img src="https://img.shields.io/badge/version-1.0.0--beta-blue?style=for-the-badge" alt="Version Number 1.0.0-Beta">
+  <img src="https://img.shields.io/github/commit-activity/y/Johns-Hopkins-CISRE/MIST?style=for-the-badge" alt="Commit Frequency">
+</h1>
 
-This Python project uses a unique "Multivariate SDCC-BiLSTM" model to automate the process of polysomnogram grading for mice. 
+MIST automates the process of polysomnogram grading for mice. It was made for a research project held at the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*, but can be reconfigured to train on other PSG datasets.
 
-# Multivariate SDCC-BiLSTM
-
-The architecture of the network is a Multivariate SDCC-BiLSTM, which stands for "Multivariate Stacked Dilated Causal Convolutions-Bidirectional Long Short Term Memory." Essentially, this architecture is a combination of traditional LSTM approaches to time-series data, along with a multivariate implementation of WaveNet.
-
-# Training Data
-
-This network was trained on a variety of polysomnograms taken of mice during sleep studies at Hopkins
-
-# Dependencies
-
-The implementation relies primarily on Keras, TensorFlow, and MNE. 
-
-# Distributed Computing
-
-Distributed computing is enabled by default for training. All workers for the distributed training session must connect to the chief via LAN. 
-
-# GUI
-
-A GUI can also optionally be enabled, controlled by the config.MODE variable. The four available modes are listed below
-
-Author: Hudson Liu
