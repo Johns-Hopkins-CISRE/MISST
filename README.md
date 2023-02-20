@@ -1,4 +1,4 @@
-# MIST
+<h1>This text should be bold, <span style="font-weight:normal">but this text should not</span></h1>
 
 This Python project uses a unique "Multivariate SDCC-BiLSTM" model to automate the process of polysomnogram grading for mice. 
 
