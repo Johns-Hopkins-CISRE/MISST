@@ -39,7 +39,6 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
   - Incorporates a custom metric to directly interface with the model predictions
 - **Progress** bars for progress tracking
 - **Statistics** for easy debugging
-- **Train and Validation** shown separately
 
 # Usage
 
