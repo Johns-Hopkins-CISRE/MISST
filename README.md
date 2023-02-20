@@ -40,7 +40,6 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
 - **Progress** bars for progress tracking
 - **Statistics** for easy debugging
 - **Train and Validation** shown separately
-  - Makes diagnosing overfitting easier
 
 # Usage
 
