@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="/docs/img/Logo%20White.png">
     <source media="(prefers-color-scheme: light)" srcset="/docs/img/Logo%20Black.png">
-    <img alt="MIST's Logo" width="30%" height="30%">
+    <img alt="MIST's Logo" width="30%" height="30%" src="/docs/img/Logo%20Black.png>
   </picture>
   <br>
   A Murinae-based Intelligent Staging Tool
