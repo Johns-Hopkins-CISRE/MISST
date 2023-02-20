@@ -29,7 +29,7 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
   - Utilizes Keras Sequences for loading datasets in O(1) space complexity
 
 # GUI
-<img align="right" width="50%" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/GUI_Full.png">
+<img align="right" width="60%" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/GUI_Full.png">
 
 - **Automatic** Model Configuration Generator
   - A model configuration menu is automatically generated as per the user's entered parameters
