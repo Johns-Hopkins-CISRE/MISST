@@ -29,6 +29,7 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
   - Utilizes Keras Sequences for loading datasets in O(1) space complexity
 
 # GUI
+
 <img align="right" width="60%" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/GUI_Full.png">
 
 - **Automatic** Model Configuration Generator
@@ -38,7 +39,8 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
 - **Prediction** Error Distribution graphs
   - Incorporates a custom metric to directly interface with the model predictions
 - **Progress** bars for progress tracking
-- **Statistics** for easy debugging
+
+<img align="center" width="100%" height="1" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/HD_transparent_picture.png">
 
 # Usage
 
