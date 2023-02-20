@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/logo/Logo%20White.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/logo/Logo%20Black.png">
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/Logo%20White.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/Logo%20Black.png">
     <img alt="MIST's Logo" width="30%" height="30%">
   </picture>
   <br>
