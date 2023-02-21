@@ -42,7 +42,15 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
 
 <img align="center" width="100%" height="1" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/HD_transparent_picture.png">
 
-# Usage
+# Prerequisites
+
+# Installation
+*Replace `[my_path]` with whatever path you want the project to be installed in.*
+```shell
+$ cd [my_path]
+$ git clone https://github.com/Johns-Hopkins-CISRE/MIST.git
+$ cd ~/MIST/
+```
 
 # Disclaimer
 MIST is still in development and has yet to pass rigorous testing.
