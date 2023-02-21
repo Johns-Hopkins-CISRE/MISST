@@ -7,7 +7,7 @@
   <br>
   A Murinae-based Intelligent Staging Tool
   <br>
-  <img src="https://img.shields.io/badge/version-1.0.0--beta-blue?style=for-the-badge" alt="Version Number 1.0.0-Beta">
+  <img src="https://img.shields.io/badge/version-1.0.0--alpha-blue?style=for-the-badge" alt="Version Number 1.0.0-Alpha">
   <img src="https://img.shields.io/github/commit-activity/y/Johns-Hopkins-CISRE/MIST?style=for-the-badge" alt="Commit Frequency">
 </h1>
 
