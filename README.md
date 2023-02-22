@@ -66,5 +66,7 @@ In order to use MIST on your own dataset, follow these steps:
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 
-# Author
-### Hudson Liu &bull; GitHub: [@hudson-liu](https://github.com/Hudson-Liu) &bull; Email: hudsonliu0@gmail.com
+# Contributors
+### Author: Hudson Liu &bull; GitHub: [@hudson-liu](https://github.com/Hudson-Liu) &bull; Email: hudsonliu0@gmail.com
+### Mentor: [Luu Pham](https://www.hopkinsmedicine.org/profiles/details/luu-pham)
+### Logo Design: [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files)
