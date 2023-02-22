@@ -57,7 +57,7 @@ $ pip install requirements.txt
 ```
 
 # Preparing The Dataset
-In order to use MIST, a specific dataset format must be followed. In this section, the rules for both the PSG and Hypnogram files are outlined. If they are not strictly adhered to, the program may result in an error.
+In order to use MIST, a specific dataset format must be followed. This section outlines the rules for both the PSG and Hypnogram files. The program may result in an error if this formatting is not strictly adhered to.
 
 The dataset must be placed into the `MIST/mist/data/` directory, with the following structure:
 - Each PSG recording **must** be in it's own subdirectory
@@ -98,7 +98,8 @@ Each Hypnogram ".csv" file should follow this format:
     - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
 4. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`.
     - Both RegEx filters must filter out all but one EDF/Hypnogram
-5. 
+5. Modify the `MODE` varaible in the config.py file to the desired mode of operation. The following key can be used when deciding what mode of operation to use:
+[insert table later]
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 
