@@ -42,18 +42,29 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
 
 <img align="center" width="100%" height="1" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/HD_transparent_picture.png">
 
-# Prerequisites
-
 # Installation
-*Replace `[my_path]` with whatever path you want the project to be installed in.*
+Before installing MIST, make sure you meet the following prerequisites:
+- Python 3.10 or later
+- A system with 8 GB RAM or more
+- At least 30 GB of free disk space
+- Windows 10 or later (*MIST does not currently support Linux/Unix systems.*)
+
+If you have a Windows system, run the following commands:
 ```shell
-$ cd [my_path]
 $ git clone https://github.com/Johns-Hopkins-CISRE/MIST.git
 $ cd ~/MIST/
+$ pip install requirements.txt
+$ 
 ```
 
-# Disclaimer
-MIST is still in development and has yet to pass rigorous testing.
+In order to use MIST on your own dataset, follow these steps:
+1. Modify the PATH variable of the config.py file (located in `/MIST/mist/config.py`) to the **exact** path of your MIST installation
+2. Place your dataset within the directory `~/MIST/data/raw/`
+    - Each PSG recording **must** be in it's own directory
+    - Multiple files can be placed within this directory, but make sure to modify the 
+    - Each recording **must** be in EDF format
 
-# License
-MIST is available under the MIT license. See the LICENSE file for more info.
+**Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
+
+# Author
+### Hudson Liu &bull; GitHub: [@hudson-liu](https://github.com/Hudson-Liu) &bull; Email: hudsonliu0@gmail.com
