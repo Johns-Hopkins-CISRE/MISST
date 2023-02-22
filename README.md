@@ -49,20 +49,56 @@ Before installing MIST, make sure you meet the following prerequisites:
 - At least 30 GB of free disk space
 - Windows 10 or later (*MIST does not currently support Linux/Unix systems.*)
 
-If you have a Windows system, run the following commands:
+If you have a Windows system, run the following commands to install MIST:
 ```shell
 $ git clone https://github.com/Johns-Hopkins-CISRE/MIST.git
 $ cd ~/MIST/
 $ pip install requirements.txt
-$ 
 ```
 
-In order to use MIST on your own dataset, follow these steps:
-1. Modify the PATH variable of the config.py file (located in `/MIST/mist/config.py`) to the **exact** path of your MIST installation
-2. Place your dataset within the directory `~/MIST/data/raw/`
-    - Each PSG recording **must** be in it's own directory
-    - Multiple files can be placed within this directory, but make sure to modify the 
-    - Each recording **must** be in EDF format
+# Preparing The Dataset
+In order to use MIST, a specific dataset format must be followed. In this section, the rules for both the PSG and Hypnogram files are outlined. If they are not strictly adhered to, the program may result in an error.
+
+The dataset must be placed into the `MIST/mist/data/` directory, with the following structure:
+- Each PSG recording **must** be in it's own subdirectory
+  - The subdirectory can be named anything
+  - The subdirectory can include unrelated files
+- Both a Hypnogram (in .csv format) and a PSG (in .edf format) recording must be present within each subdirectory
+- The Hypnogram and PSG can be named anything, as long as the RegEx is able to properly filter it out
+
+By the end of this formatting, the MIST directory tree should look as follows:
+```bash
+    ├───MIST
+    │   ├───data
+    │   │   ├───raw
+    │   │   │   ├───[subdirectory_1]
+    │   │   │   │   └───EDF.edf
+    │   │   │   │   └───hypnogram.csv
+    │   │   │   ├───[subdirectory_2]
+    │   │   │   │   └───EDF.edf
+    │   │   │   │   └───hypnogram.csv
+    │   │   │   ├───[subdirectory_3]
+    │   │   │   │   └───EDF.edf
+    │   │   │   │   └───hypnogram.csv
+    │   │   │   │   ...
+    │   │   │   ├───[subdirectory_n]
+    │   │   │   │   └───EDF.edf
+    │   │   │   │   └───hypnogram.csv
+```
+Each Hypnogram ".csv" file should follow this format:
+| type        | start                   | stop                    |
+| ----------- | ----------------------- | ----------------------- |
+| SLEEP-S0    | 2021-10-19 10:12:44.000 | 2021-10-19 10:12:54.000 |
+| SLEEP-S2    | 2021-10-19 10:12:54.000 | 2021-10-19 10:13:04.000 |
+| SLEEP-REM   | 2021-10-19 10:13:04.000 | 2021-10-19 10:13:14.000 |
+
+# Usage
+1. Modify the `PATH` variable in the config.py file (located in /MIST/mist/config.py) to the **exact** path of your MIST installation
+2. Place your dataset within the directory ~/MIST/data/raw/
+    - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
+4. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`.
+    - Both RegEx filters must filter out all but one EDF/Hypnogram
+5. 
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 
