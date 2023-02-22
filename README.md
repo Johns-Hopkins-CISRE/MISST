@@ -66,7 +66,7 @@ The dataset must be placed into the `MIST/mist/data/` directory, with the follow
 - Both a Hypnogram (in .csv format) and a PSG (in .edf format) recording must be present within each subdirectory
 - The Hypnogram and PSG can be named anything, as long as the RegEx is able to properly filter it out
 
-By the end of this formatting, the MIST directory tree should look as follows:
+The final MIST directory tree should look as follows:
 ```bash
     ├───MIST
     │   ├───data
