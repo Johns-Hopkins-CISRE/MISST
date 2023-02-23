@@ -96,10 +96,18 @@ Each Hypnogram ".csv" file should follow this format:
 1. Modify the `PATH` variable in the config.py file (located in /MIST/mist/config.py) to the **exact** path of your MIST installation
 2. Place your dataset within the directory ~/MIST/data/raw/
     - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
-4. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`.
+3. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`. 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
-5. Modify the `MODE` varaible in the config.py file to the desired mode of operation. The following key can be used when deciding what mode of operation to use:
-[insert table later]
+4. Modify the `MODE` variable in the config.py file to the desired mode of operation. The following key can be used when deciding what mode of operation to use:
+
+    | Mode Name | Description                                         | Current Status    |
+    | --------- | --------------------------------------------------- | ----------------- |
+    | PLAIN     | Basic model training mode                           | ✅ Working        |
+    | TUNER     | Will use a KerasTuner during training               | ✅ Working        |
+    | GUI       | Provides a GUI for real-time training visualization | ❌ Not Working    |
+    | DIST      | Will train using a distributed network              | ❌ Not Working    |
+5. test
+    
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 
