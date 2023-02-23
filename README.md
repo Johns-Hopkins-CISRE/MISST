@@ -105,7 +105,7 @@ To create annotations for your given dataset using MIST's **pretrained** model, 
 ```shell
 $ python mist -generate
 ```
-The annotations will be exported in the directory`~/MIST/data/annots/`. Each PSG recording will get it's own individual annots file, with the name of each annots file corresponding to the name of it's respective PSG recording's directory: `annots_[dir_name].csv`.
+The annotations will be exported in the directory`~/MIST/data/annots/`. Each PSG recording will get it's own individual annots file, with the name of each annots file corresponding to the name of it's respective PSG recording's directory: `annots_[dir name].csv`.
 This annots file will be formatted as follows:
 | type      | start    | stop     |
 | --------- | -------- | -------- |
