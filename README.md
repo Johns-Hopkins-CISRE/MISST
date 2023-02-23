@@ -101,7 +101,7 @@ Before using MIST, the config.py file must be properly configured. To configure 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
 
 # Generating Annotations
-To create annotations for your given dataset using MIST's **pretrained** model, just follow the following command:
+To create annotations for your given dataset using MIST's **pretrained** model, just navigate to the directory in which you installed MIST, then enter the following command:
 ```shell
 python mist -generate
 ```
