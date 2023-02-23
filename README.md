@@ -59,7 +59,7 @@ $ pip install requirements.txt
 # Preparing The Dataset
 In order to use MIST, a specific dataset format must be followed. This section outlines the rules for both the PSG and Hypnogram files. The program may result in an error if this formatting is not strictly adhered to.
 
-The dataset must be placed into the `MIST/mist/data/` directory, with the following structure:
+The dataset must be placed into the `~/MIST/mist/data/` directory, with the following structure:
 - Each PSG recording **must** be in it's own subdirectory
   - The subdirectory can be named anything
   - The subdirectory can include unrelated files
@@ -94,19 +94,20 @@ Each Hypnogram ".csv" file should follow this format:
 
 # Configuration
 Before using MIST, the config.py file must be properly configured. To configure it, follow these steps:
-1. Modify the `PATH` variable in the config.py file (located in `/MIST/mist/config.py`) to the **exact** path of your MIST installation
+1. Modify the `PATH` variable in the config.py file (located in `~/MIST/mist/config.py`) to the **exact** path of your MIST installation
 2. Place your dataset within the directory `~/MIST/data/raw/`
     - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
 3. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`. 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
 
 # Generating Annotations
-To create annotations for your given dataset using MIST's **pretrained** model, just follow these simple steps:
-1. [insert]
-2. [insert]
+To create annotations for your given dataset using MIST's **pretrained** model, just follow the following command:
 ```shell
-[insert]
+python mist -generate
 ```
+The annotations will be exported as `~/MIST/data/annots.csv`.
+This .csv file will be formatted as follows:
+
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 # Training
@@ -121,10 +122,10 @@ Follow these steps if you'd like to train a new model using MIST's ModelTrainer 
     | DIST      | Trains using a distributed computing network        | ❌ Not Working    | 
 2. Navigate to the directory in which you installed MIST, then enter the following line into the Command Prompt: 
     ```shell
-    python mist
+    python mist -train
     ```
 
 # Contributors
-### Author: Hudson Liu &bull; GitHub: [@hudson-liu](https://github.com/Hudson-Liu) &bull; Email: hudsonliu0@gmail.com
+### Author: Hudson Liu &bull; 🖥️ GitHub [@hudson-liu](https://github.com/Hudson-Liu) &bull; 📧 Email hudsonliu0@gmail.com
 ### Mentor: [Luu Pham](https://www.hopkinsmedicine.org/profiles/details/luu-pham)
 ### Logo Design: [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files)
