@@ -67,7 +67,7 @@ The dataset must be placed into the `MIST/mist/data/` directory, with the follow
 - The Hypnogram and PSG can be named anything, as long as the RegEx is able to properly filter it out
 
 The final MIST directory tree should look as follows:
-```bash
+```shell
     ├───MIST
     │   ├───data
     │   │   ├───raw
@@ -93,15 +93,20 @@ Each Hypnogram ".csv" file should follow this format:
 | SLEEP-REM   | 2021-10-19 10:13:04.000 | 2021-10-19 10:13:14.000 |
 
 # Configuration
-1. Modify the `PATH` variable in the config.py file (located in /MIST/mist/config.py) to the **exact** path of your MIST installation
+Before using MIST, the config.py file must be properly configured. To configure it, follow these steps:
+1. Modify the `PATH` variable in the config.py file (located in `/MIST/mist/config.py`) to the **exact** path of your MIST installation
 2. Place your dataset within the directory `~/MIST/data/raw/`
     - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
 3. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`. 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
 
-# Predicting
-Follow these steps if you'd like to use MIST's **pretrained** model to generate annotations for your dataset:
+# Generating Annotations
+To create annotations for your given dataset using MIST's **pretrained** model, just follow these simple steps:
 1. [insert]
+2. [insert]
+```shell
+[insert]
+```
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 # Training
