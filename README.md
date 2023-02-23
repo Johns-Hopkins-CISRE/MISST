@@ -99,7 +99,7 @@ Each Hypnogram ".csv" file should follow this format:
 3. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`. 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
 
-# Prediction
+# Predicting
 Follow these steps if you'd like to use MIST's **pretrained** model to generate annotations for your dataset:
 1. [insert]
 
