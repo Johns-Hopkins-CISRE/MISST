@@ -111,9 +111,9 @@ Follow these steps if you'd like to train a new model using MIST's ModelTrainer 
     | Mode Name | Description                                         | Current Status    |
     | --------- | --------------------------------------------------- | ----------------- |
     | PLAIN     | Basic model training mode                           | ✅ Working        |
-    | TUNER     | Will use a KerasTuner during training               | ✅ Working        |
+    | TUNER     | Uses a KerasTuner during training                   | ✅ Working        |
     | GUI       | Provides a GUI for real-time training visualization | ❌ Not Working    |
-    | DIST      | Will train using a distributed network              | ❌ Not Working    | 
+    | DIST      | Trains using a distributed computing network        | ❌ Not Working    | 
 2. Navigate to the directory in which you installed MIST, then enter the following line into the Command Prompt: 
     ```shell
     python mist
