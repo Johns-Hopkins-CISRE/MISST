@@ -105,9 +105,13 @@ To create annotations for your given dataset using MIST's **pretrained** model, 
 ```shell
 python mist -generate
 ```
-The annotations will be exported as `~/MIST/data/annots.csv`.
-This .csv file will be formatted as follows:
-
+The annotations will be exported in the directory`~/MIST/data/annots/`. Each PSG recording will get it's own individual annots file, with the name of each annots file corresponding to the name of it's respective PSG recording's directory: `annots_[dir_name].csv`.
+This annots file will be formatted as follows:
+| type      | start    | stop     |
+| --------- | -------- | -------- |
+| SLEEP-S0  | 10:12:44 | 10:12:54 |
+| SLEEP-S2  | 10:12:54 | 10:13:04 |
+| SLEEP-REM | 10:13:04 | 10:13:14 |
 
 **Disclaimer**: MIST is still in development and has yet to pass rigorous testing. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MIST model.
 # Training
