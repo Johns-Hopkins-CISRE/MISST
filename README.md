@@ -96,7 +96,7 @@ Each Hypnogram ".csv" file should follow this format:
 Before using MIST, the config.py file must be properly configured. To configure it, follow these steps:
 1. Modify the `PATH` variable in the config.py file (located in `~/MIST/mist/config.py`) to the **exact** path of your MIST installation
 2. Place your dataset within the directory `~/MIST/data/raw/`
-    - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/edit/wip-readme-edits/README.md#preparing-the-dataset) section
+    - Make sure your dataset follows the guidelines outlined in the [Preparing The Dataset](https://github.com/Johns-Hopkins-CISRE/MIST/tree/main#preparing-the-dataset) section
 3. Since each subdirectory is allowed to have multiple EDF files, RegEx patterns are used to filter out all other undesired files. The first RegEx pattern is for the EDF file, and it can be modified in the config.py file by changing the value of `EDF_REGEX` to the desired RegEx. The second RegEx pattern is for the Hypnogram files, and can be modified by changing the value of `HYPNOGRAM_REGEX`. 
     - Both RegEx filters must filter out all but one EDF/Hypnogram
 
