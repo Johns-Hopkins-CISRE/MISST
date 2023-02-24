@@ -42,9 +42,10 @@ Despite the plethora of existing sleep staging algorithms, few were suited to sp
 
 <img align="center" width="100%" height="1" src="https://github.com/Johns-Hopkins-CISRE/MIST/blob/main/docs/img/HD_transparent_picture.png">
 
-# Installation
+# Getting Started
 Before installing MIST, make sure you meet the following prerequisites:
 - Python 3.10 or later
+- Git
 - A system with 8 GB RAM or more
 - At least 30 GB of free disk space
 - Windows 10 or later (*MIST does not currently support Linux/Unix systems.*)
