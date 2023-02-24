@@ -132,9 +132,9 @@ Follow these steps if you'd like to train a new model using MIST's ModelTrainer 
 
 # Contributors
 ### Lead Developer: Hudson Liu &bull; 🖥️ GitHub [@hudson-liu](https://github.com/Hudson-Liu) &bull; 📧 Email hudsonliu0@gmail.com
-### Mentor/Team Lead: [Dr. Luu Pham](https://www.hopkinsmedicine.org/profiles/details/luu-pham)
+### Mentor/Team Lead: [Luu Van Pham, M.D.](https://www.hopkinsmedicine.org/profiles/details/luu-pham)
 ### Team Member: Lenise Kim
 ### Logo Design: [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files)
 
 # Acknowledgements
-This program was developed by Hudson Liu over the course of an internship led by Dr. Luu Pham (IT Director of the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*). The pre-trained model uses data by Lenise Kim. The logo design comes from [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files).
+This program was developed by Hudson Liu over the course of an internship led by Luu Van Pham, M.D. (IT Director of the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*). The pre-trained model uses data by Lenise Kim. The logo design comes from [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files).
