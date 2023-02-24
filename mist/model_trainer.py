@@ -168,28 +168,6 @@ class DataGenerator(keras.utils.Sequence):
         self.y = []
 
 
-class LRScheduler(tf.keras.optimizers.schedules.LearningRateSchedule):
-    """Acts as a learning rate scheduler; callback doesn't work w/ KerasTuner"""
-    
-    def __init__(self, initial_learning_rate):
-        """Saves initial lr"""
-        self.initial_learning_rate = initial_learning_rate
-
-    @override
-    def __call__(self, step):
-        """Called at start of each epoch, returns a modified lr"""
-        # TODO replace this with warmup and anneal cosine lr
-        return self.initial_learning_rate
-    
-    @override
-    def get_config(self):
-        """Returns the kwargs needed for the constructor of LRScheduler; needed for serialization"""
-        config = {
-            'initial_learning_rate': self.initial_learning_rate,
-        }
-        return config
-
-
 class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
 
@@ -340,7 +318,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         flat = GlobalAveragePooling1D()(relu)
 
         # Output
-        dropout = Dropout(0.4)(flat)
+        dropout = Dropout(0.5)(flat)
         output = Dense(units=NUM_CLASSES, activation="softmax")(dropout)
 
         # Create Model
@@ -405,7 +383,8 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Compile model
         opt_func = self.params["optimizer"].value
-        optimizer = opt_func(LRScheduler(self.params["learning_rate"]))
+        lr_schedule = keras.optimizers.schedules.CosineDecayRestarts(self.params["learning_rate"], self.params["decay_steps"])
+        optimizer = opt_func(lr_schedule)
         metric_list = list(self.metrics.values())
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)
 

@@ -28,7 +28,8 @@ TUNER_FILE_TO_LOAD = { # Irrelevant if LOAD_TUNER_PARAMS is False
 MODEL_PARAMS: ModelParams = {
     "epochs":        200,
     "batch_size":    16,
-    "learning_rate": 3.2e-4,
+    "learning_rate": 2e-3, #3.2e-4
+    "decay_steps":   40,
     "optimizer":     Optimizers.ADAM,
     "model_type":    ModelType.BOTTLENECK,
 
