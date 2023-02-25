@@ -52,9 +52,9 @@ Before installing MIST, make sure you meet the following prerequisites:
 
 If you have a Windows system, run the following commands to install MIST:
 ```shell
-$ git clone https://github.com/Johns-Hopkins-CISRE/MIST.git
-$ cd ~/MIST/
-$ pip install requirements.txt
+C:\...> $ git clone https://github.com/Johns-Hopkins-CISRE/MIST.git
+C:\...> cd ./MIST/
+C:\...\MIST> $ pip install requirements.txt
 ```
 
 # Preparing The Dataset
@@ -104,7 +104,7 @@ Before using MIST, the config.py file must be properly configured. To configure 
 # Generating Annotations
 To create annotations for your given dataset using MIST's **pretrained** model, just navigate to the directory in which you installed MIST, then enter the following command:
 ```shell
-$ python mist -generate
+C:\...\MIST> python -m mist --mode generate
 ```
 The annotations will be exported in the directory`~/MIST/data/annots/`. Each PSG recording will get it's own individual annots file, with the name of each annots file corresponding to the name of it's respective PSG recording's directory: `annots_[dir name].csv`.
 This annots file will be formatted as follows:
@@ -127,7 +127,7 @@ Follow these steps if you'd like to train a new model using MIST's ModelTrainer 
     | DIST      | Trains using a distributed computing network        | ❌ Not Working    | 
 2. Navigate to the directory in which you installed MIST, then enter the following line into the Command Prompt: 
     ```shell
-    $ python mist -train
+    C:\...\MIST> python -m mist --mode train
     ```
 
 # Contributors
