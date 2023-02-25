@@ -17,7 +17,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 
-import config
+from mist.trainer import config
 
 
 class PreProcessor():

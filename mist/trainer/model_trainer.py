@@ -33,13 +33,13 @@ from keras.layers import (
     GlobalAveragePooling1D
 )
 
-from utils.datasets import GeneratorDataset, ArrayDataset
-from utils.enum_vals import Splits
-from utils.trainers import DistributedTrainer, TunerTrainer
+from mist.trainer.utils.datasets import GeneratorDataset, ArrayDataset
+from mist.trainer.utils.enum_vals import Splits
+from mist.trainer.utils.trainers import DistributedTrainer, TunerTrainer
 
-from project_enums import TrainingModes, ModelType, TuneableParams
-from preprocessor import PreProcessor
-from gui import GenericGUI, GUICallback
+from mist.trainer.project_enums import TrainingModes, ModelType, TuneableParams
+from mist.trainer.preprocessor import PreProcessor
+from mist.trainer.gui import GenericGUI, GUICallback
 
 
 class DistributedGUI(GenericGUI):
@@ -383,7 +383,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Compile model
         opt_func = self.params["optimizer"].value
-        lr_schedule = keras.optimizers.schedules.CosineDecayRestarts(self.params["learning_rate"], self.params["decay_steps"])
+        lr_schedule = tf.keras.optimizers.schedules.CosineDecayRestarts(self.params["learning_rate"], self.params["decay_steps"])
         optimizer = opt_func(lr_schedule)
         metric_list = list(self.metrics.values())
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)

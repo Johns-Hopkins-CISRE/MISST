@@ -6,13 +6,12 @@
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
-from utils.enum_vals import Optimizers, TunerType
-from utils.req_params import ModelParams, TunerParams
-from project_enums import TrainingModes, ModelType, TuneableParams
+from mist.trainer.utils.enum_vals import Optimizers, TunerType
+from mist.trainer.utils.req_params import ModelParams, TunerParams
+from mist.trainer.project_enums import TrainingModes, ModelType, TuneableParams
 
 
-# Modify these
-PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MIST/" # Path to project
+# Modify These
 MODE = TrainingModes.PLAIN # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"
 
 # Don't touch
