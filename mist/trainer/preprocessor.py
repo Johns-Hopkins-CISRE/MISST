@@ -15,9 +15,15 @@ import pickle
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import glob
 import re
 
 from mist.trainer import config
+
+
+class MissingChannelsException(Exception):
+    """Acts as a flag for when a PSG is missing channels"""
+    pass
 
 
 class PreProcessor():
@@ -54,9 +60,9 @@ class PreProcessor():
         self.__maxs = None
         self.__sample_rate = None
 
-    def __glob_re(regex: str, strings: str):
+    def __glob_re(self, regex: str, strings: str):
         """Applies RegEx to any list of strings"""
-        return filter(re.compile(regex).match, strings)
+        return list(filter(re.compile(regex).match, strings))
     
     def import_example_edf(self) -> mne.io.BaseRaw:
         """Returns a single RawEDF for the purpose of determining edf info"""
@@ -88,7 +94,7 @@ class PreProcessor():
             os.chdir(f"{self.PATH}data/raw/{directory}/")
             dir_files = os.listdir()
             valid_edfs = self.__glob_re(self.EDF_REGEX, dir_files)
-            valid_hypnograms = self.__glob_re(self.HYPNOGRAM_REGEX)
+            valid_hypnograms = self.__glob_re(self.HYPNOGRAM_REGEX, dir_files)
 
             # Find all valid directories
             if len(valid_edfs) == 0 or len(valid_edfs) > 1 or len(valid_hypnograms) == 0 or len(valid_hypnograms) > 1:
@@ -112,10 +118,14 @@ class PreProcessor():
             else:
                 # Read edf if found
                 edf, hypnogram = valid_edfs[0], valid_hypnograms[0]
-                x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram)
-
-                # Validate results
-                if x == None and y == None:
+                try:
+                    x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram)
+                except MissingChannelsException:
+                    print(
+                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
+                        "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
+                        "the train/test/val split to become inaccurate."
+                    )
                     continue
 
                 # Create folder and save data
@@ -130,7 +140,7 @@ class PreProcessor():
         edf = mne.io.read_raw_edf(edf_dir)
 
         # Import annotations & remove unnecessary columns
-        df = pd.read_csv("hynogram.csv")
+        df = pd.read_csv(hypnogram_name)
         df = df.drop(labels=["location", "startval", "stopval", "change"], axis=1)
         df = df.sort_values("start", axis=0)
         labels = df.to_numpy()
@@ -171,12 +181,7 @@ class PreProcessor():
             take = [edf.ch_names.index(ch) for ch in self.CHANNELS]
             edf_array = edf_array[take]
         except ValueError:
-            print(
-                f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
-                "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
-                "the train/test/val split to become inaccurate."
-            )
-            return None, None
+            raise MissingChannelsException()
         del edf
 
         # Calculate remaining offset
@@ -430,8 +435,11 @@ class PreProcessor():
 
 
 if __name__ == "__main__":
-    # Import, preprocess, and save the train, test, and validation sets
-    preproc = PreProcessor(config.PATH)
+    """Unit-Test: Tests the PreProcessor's capabilities"""
+    PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MIST/"
+    EDF_REGEX = r".*EDF\.edf$"
+    HYPNOGRAM_REGEX = r"\bhynogram\.csv\b"
+    preproc = PreProcessor(PATH, EDF_REGEX, HYPNOGRAM_REGEX)
 
     # Each method can be done asynchronously (as long as they're executed in order)
     preproc.import_and_preprocess()

@@ -25,9 +25,9 @@ from abc import ABC, abstractmethod
 from tqdm import tqdm
 from overrides import override
 
-from mist.trainer.utils.req_params import ModelParams, TunerParams
-from mist.trainer.utils.datasets import GeneratorDataset, ArrayDataset
-from mist.trainer.utils.enum_vals import TunerType
+from .req_params import ModelParams, TunerParams
+from .enum_vals import TunerType
+from .datasets import GeneratorDataset, ArrayDataset
 
 
 class BaseTrainer(ABC):

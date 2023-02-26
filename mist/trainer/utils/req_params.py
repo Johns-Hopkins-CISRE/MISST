@@ -9,7 +9,7 @@ __email__ = "hudsonliu0@gmail.com"
 from typing import Any, TypedDict
 from enum import Enum
 
-from mist.trainer.utils.enum_vals import Optimizers, TunerType
+from .enum_vals import Optimizers, TunerType
 
 
 class ModelParams(TypedDict):
