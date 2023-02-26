@@ -19,6 +19,13 @@
             "console": "integratedTerminal",
             "module": "mist",
             "args": ["--mode", "generate"]
+        },
+        {
+            "name": "Unittest MIST PreProcessor",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "module": "mist.trainer.preprocessor",
         }
     ]
 }

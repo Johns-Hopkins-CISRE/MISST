@@ -9,13 +9,13 @@ __email__ = "hudsonliu0@gmail.com"
 import os
 import sys
 import shutil
-import glob
 import random
 import mne
 import pickle
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import re
 
 from mist.trainer import config
 
@@ -45,12 +45,18 @@ class PreProcessor():
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, edf_regex: str, hypnogram_regex: str):
         self.PATH = path
+        self.EDF_REGEX = edf_regex
+        self.HYPNOGRAM_REGEX = hypnogram_regex
         
         self.__mins = None
         self.__maxs = None
         self.__sample_rate = None
+
+    def __glob_re(regex: str, strings: str):
+        """Applies RegEx to any list of strings"""
+        return filter(re.compile(regex).match, strings)
     
     def import_example_edf(self) -> mne.io.BaseRaw:
         """Returns a single RawEDF for the purpose of determining edf info"""
@@ -80,112 +86,141 @@ class PreProcessor():
         for directory in tqdm(all_dirs, desc=f"Preprocessing All Data", file=sys.stdout):
             # Search directory for edf
             os.chdir(f"{self.PATH}data/raw/{directory}/")
-            filename = glob.glob("*EDF.edf")
+            dir_files = os.listdir()
+            valid_edfs = self.__glob_re(self.EDF_REGEX, dir_files)
+            valid_hypnograms = self.__glob_re(self.HYPNOGRAM_REGEX)
 
-            if len(filename) > 0:
-                # Read edf if found
-                filename = filename[0]
-                edf_dir = f"{self.PATH}data/raw/{directory}/{filename}/"
-                edf = mne.io.read_raw_edf(edf_dir)
-
-                # Import annotations & remove unnecessary columns
-                df = pd.read_csv("hynogram.csv")
-                df = df.drop(labels=["location", "startval", "stopval", "change"], axis=1)
-                df = df.sort_values("start", axis=0)
-                labels = df.to_numpy()
-
-                # Load in mins and maxs, and calculate and save if they don't already exist
-                os.chdir(f"{self.PATH}data/")
-                if self.__mins is None and self.__maxs is None:
-                    try:
-                        minmax = np.load("minmax.npz")
-                        self.__maxs = minmax["maxs"]
-                        self.__mins = minmax["mins"]
-                    except OSError:
-                        desc = edf.describe(data_frame=True)
-                        self.__maxs = desc.loc[:, "max"].to_numpy()
-                        self.__mins = desc.loc[:, "min"].to_numpy()
-                        np.savez("minmax.npz", mins=self.__mins, maxs=self.__maxs)
-
-                # Temporary sample rate
-                self.__sample_rate = edf.info["sfreq"]
-
-                # Find difference between start times for annotations and PSG
-                edf_start = edf.info["meas_date"]
-                edf_sec = edf_start.hour * 3600 + edf_start.minute * 60 + edf_start.second
-                start_time = labels[0][1].split(" ")[1].split(":") # Read first data point
-                start_sec = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + float(start_time[2])
-                start_diff = (start_sec - edf_sec) * self.__sample_rate
-                
-                # Ensure dates of EDF & Hypnogram agree
-                edf_y, edf_m, edf_d = edf_start.year, edf_start.month, edf_start.day 
-                hyp_y, hyp_m, hyp_d = [int(val) for val in labels[0][1].split(" ")[0].split("-")]
-                assert (edf_y == hyp_y) and (edf_m == hyp_m) and (edf_d == hyp_d)
-
-                # Remove data & convert to numpy
-                edf_array = edf.get_data()[:, int(start_diff):]
-
-                # Delete unused channels & unused edf obj
-                try:
-                    take = [edf.ch_names.index(ch) for ch in self.CHANNELS]
-                    edf_array = edf_array[take]
-                except ValueError:
+            # Find all valid directories
+            if len(valid_edfs) == 0 or len(valid_edfs) > 1 or len(valid_hypnograms) == 0 or len(valid_hypnograms) > 1:
+                if len(valid_edfs) == 0:
+                    print(f"Warning: Directory \"{directory}\" did not contain a valid .edf file")
+                elif len(valid_edfs) > 1:
                     print(
-                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
-                        "(no \"Raw Score\" channel). This directory will be skipped."
+                        f"Warning: Directory \'{directory}\" contained multiple valid .edf files." +
+                        "Make sure that the \"EDF_REGEX\" variable in the global_config.py file " +
+                        "only selects one file per directory."
                     )
+
+                if len(valid_hypnograms) == 0:
+                    print(f"Warning: Directory \"{directory}\" did not contain a valid hypnogram file")
+                elif len(valid_hypnograms) > 1:
+                    print(
+                        f"Warning: Directory \'{directory}\" contained multiple valid hypnogram files." +
+                        "Make sure that the \"HYPNOGRAM_REGEX\" variable in the global_config.py file " +
+                        "only selects one file per directory."
+                    )
+            else:
+                # Read edf if found
+                edf, hypnogram = valid_edfs[0], valid_hypnograms[0]
+                x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram)
+
+                # Validate results
+                if x == None and y == None:
                     continue
-                del edf
-
-                # Calculate remaining offset
-                rec_samp = self.__sample_rate * self.RECORDING_LEN
-                event_samples = int(rec_samp * len(labels))
-                offset = np.size(edf_array, axis=1) - event_samples
-
-                # Align the ends of "labels" and "edf_array"
-                if offset >= 0:
-                    # Remove samples from the end of the edf list to account for offset
-                    edf_array = edf_array[:, :-offset]
-                elif offset < 0:
-                    # Remove excess labels from end of hypnogram file and edf list
-                    label_offset = -1 * (offset / rec_samp)
-                    add_offset = 1 - (label_offset % 1)
-                    labels = labels[:-int(label_offset + add_offset) or None]
-                    edf_offset = int(add_offset * rec_samp)
-                    edf_array = edf_array[:, :-edf_offset or None]
-                    event_samples = int(rec_samp * len(labels))
-
-                # Don't append data if it's not a 1:1 ratio
-                if event_samples != int(np.size(edf_array, axis=1)):
-                    raise ValueError(
-                        f"Directory \"{directory}\": " + 
-                        "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
-                        "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt."
-                    )
-                
-                # Remove unbalanced data
-                annots, remove, rand_shuf = self.__proc_labels(labels)
-                x = self.__proc_edf(edf_array, remove, rand_shuf)
-
-                # Downsample edf; sample rate is updated for compatibility w/ other functions
-                self.__sample_rate /= self.DOWNSAMPLING_RATE
-                assert abs(self.__sample_rate - round(self.__sample_rate)) < self.MARGIN
-                x = x[:, :, ::self.DOWNSAMPLING_RATE]
-
-                # Ensure balancing removal and downsampling worked correctly
-                assert len(x) == len(annots)
-
-                # Normalize data
-                x_norm = self.__normalize(x)
 
                 # Create folder and save data
                 newpath = f"{self.PATH}data/processed/"
                 self.__use_dir(newpath, delete=False)
                 os.chdir(newpath)
-                np.savez(f"{directory}.npz", x_norm=x_norm, annots=annots, allow_pickle=False)
-            # Just move onto the next directory
-            else:    
-                print(f"Warning: Directory \"{directory}\" did not contain a valid .edf file")
+                np.savez(f"{directory}.npz", x_norm=x, annots=y, allow_pickle=False)
+    
+    def __preproc_edf_and_hypno(self, directory: str, edf_name: str, hypnogram_name: str):
+        """Imports and preprocesses a single directory"""
+        edf_dir = f"{self.PATH}data/raw/{directory}/{edf_name}/"
+        edf = mne.io.read_raw_edf(edf_dir)
+
+        # Import annotations & remove unnecessary columns
+        df = pd.read_csv("hynogram.csv")
+        df = df.drop(labels=["location", "startval", "stopval", "change"], axis=1)
+        df = df.sort_values("start", axis=0)
+        labels = df.to_numpy()
+
+        # Load in mins and maxs, and calculate and save if they don't already exist
+        os.chdir(f"{self.PATH}data/")
+        if self.__mins is None and self.__maxs is None:
+            try:
+                minmax = np.load("minmax.npz")
+                self.__maxs = minmax["maxs"]
+                self.__mins = minmax["mins"]
+            except OSError:
+                desc = edf.describe(data_frame=True)
+                self.__maxs = desc.loc[:, "max"].to_numpy()
+                self.__mins = desc.loc[:, "min"].to_numpy()
+                np.savez("minmax.npz", mins=self.__mins, maxs=self.__maxs)
+
+        # Temporary sample rate
+        self.__sample_rate = edf.info["sfreq"]
+
+        # Find difference between start times for annotations and PSG
+        edf_start = edf.info["meas_date"]
+        edf_sec = edf_start.hour * 3600 + edf_start.minute * 60 + edf_start.second
+        start_time = labels[0][1].split(" ")[1].split(":") # Read first data point
+        start_sec = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + float(start_time[2])
+        start_diff = (start_sec - edf_sec) * self.__sample_rate
+        
+        # Ensure dates of EDF & Hypnogram agree
+        edf_y, edf_m, edf_d = edf_start.year, edf_start.month, edf_start.day 
+        hyp_y, hyp_m, hyp_d = [int(val) for val in labels[0][1].split(" ")[0].split("-")]
+        assert (edf_y == hyp_y) and (edf_m == hyp_m) and (edf_d == hyp_d)
+
+        # Remove data & convert to numpy
+        edf_array = edf.get_data()[:, int(start_diff):]
+
+        # Delete unused channels & unused edf obj
+        try:
+            take = [edf.ch_names.index(ch) for ch in self.CHANNELS]
+            edf_array = edf_array[take]
+        except ValueError:
+            print(
+                f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
+                "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
+                "the train/test/val split to become inaccurate."
+            )
+            return None, None
+        del edf
+
+        # Calculate remaining offset
+        rec_samp = self.__sample_rate * self.RECORDING_LEN
+        event_samples = int(rec_samp * len(labels))
+        offset = np.size(edf_array, axis=1) - event_samples
+
+        # Align the ends of "labels" and "edf_array"
+        if offset >= 0:
+            # Remove samples from the end of the edf list to account for offset
+            edf_array = edf_array[:, :-offset]
+        elif offset < 0:
+            # Remove excess labels from end of hypnogram file and edf list
+            label_offset = -1 * (offset / rec_samp)
+            add_offset = 1 - (label_offset % 1)
+            labels = labels[:-int(label_offset + add_offset) or None]
+            edf_offset = int(add_offset * rec_samp)
+            edf_array = edf_array[:, :-edf_offset or None]
+            event_samples = int(rec_samp * len(labels))
+
+        # Don't append data if it's not a 1:1 ratio
+        if event_samples != int(np.size(edf_array, axis=1)):
+            raise ValueError(
+                f"Directory \"{directory}\": " + 
+                "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
+                "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt."
+            )
+        
+        # Remove unbalanced data
+        annots, remove, rand_shuf = self.__proc_labels(labels)
+        x = self.__proc_edf(edf_array, remove, rand_shuf)
+
+        # Downsample edf; sample rate is updated for compatibility w/ other functions
+        self.__sample_rate /= self.DOWNSAMPLING_RATE
+        assert abs(self.__sample_rate - round(self.__sample_rate)) < self.MARGIN
+        x = x[:, :, ::self.DOWNSAMPLING_RATE]
+
+        # Ensure balancing removal and downsampling worked correctly
+        assert len(x) == len(annots)
+
+        # Normalize data
+        x_norm = self.__normalize(x)
+
+        return x_norm, annots
     
     def __proc_labels(self, labels):
         """Shuffle labels and removed unbalanced classes"""

@@ -16,7 +16,7 @@ MODE = TrainingModes.PLAIN # "PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER
 
 # Don't touch
 EXPORT_DIR = "data" # Default is "data"
-PREPROCESS_DATA = False # Default is False, set as True  to override existing data
+PREPROCESS_DATA = False # Default is False, set as True to override existing data
 LOAD_TUNER_PARAMS = False # Default is True, set as False to manually configure "params" var
 TUNER_FILE_TO_LOAD = { # Irrelevant if LOAD_TUNER_PARAMS is False
     "tuner_type":   TunerType.HYPERBAND,
