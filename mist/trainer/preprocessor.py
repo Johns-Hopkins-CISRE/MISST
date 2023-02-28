@@ -88,8 +88,9 @@ class PreProcessor():
         # Keep MNE from outputting unnecessary log data
         mne.set_log_level("error")
 
-        # Traverse through sliced directories
-        for directory in tqdm(all_dirs, desc=f"Preprocessing All Data", file=sys.stdout):
+        # Traverse through directories
+        valid_files = []
+        for directory in tqdm(all_dirs, desc=f"Searching Directories", file=sys.stdout):
             # Search directory for edf
             os.chdir(f"{self.PATH}data/raw/{directory}/")
             dir_files = os.listdir()
@@ -116,23 +117,27 @@ class PreProcessor():
                         "only selects one file per directory."
                     )
             else:
-                # Read edf if found
-                edf, hypnogram = valid_edfs[0], valid_hypnograms[0]
-                try:
-                    x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram)
-                except MissingChannelsException:
-                    print(
-                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
-                        "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
-                        "the train/test/val split to become inaccurate."
-                    )
-                    continue
+                # Save edf if valid
+                valid_files.append((directory, valid_edfs[0], valid_hypnograms[0]))
+        
+        # Break directories up into slices
 
-                # Create folder and save data
-                newpath = f"{self.PATH}data/processed/"
-                self.__use_dir(newpath, delete=False)
-                os.chdir(newpath)
-                np.savez(f"{directory}.npz", x_norm=x, annots=y, allow_pickle=False)
+        # Iterate over corresponding directories for each slice
+        for directory, edf, hypnogram in tqdm(valid_files, desc=f"Preprocessing All Data", file=sys.stdout):
+            try:
+                x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram)
+            except MissingChannelsException:
+                print(
+                    f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
+                    "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
+                    "the train/test/val split to become inaccurate."
+                )
+                continue
+            # Create folder and save data
+            newpath = f"{self.PATH}data/processed/"
+            self.__use_dir(newpath, delete=False)
+            os.chdir(newpath)
+            np.savez(f"{directory}.npz", x_norm=x, annots=y, allow_pickle=False)
     
     def __preproc_edf_and_hypno(self, directory: str, edf_name: str, hypnogram_name: str):
         """Imports and preprocesses a single directory"""
