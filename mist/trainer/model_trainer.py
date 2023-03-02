@@ -99,7 +99,7 @@ class DataGenerator(keras.utils.Sequence):
         self.num_batches = None
 
         # Find all files
-        os.chdir(f"{self.PATH}data/split/{self.SPLIT}/")
+        os.chdir(f"{self.PATH}data/shuffled/{self.SPLIT}/")
         self.all_recs = os.listdir()
         random.shuffle(self.all_recs)
     
@@ -112,14 +112,14 @@ class DataGenerator(keras.utils.Sequence):
             with open("split_lens.pkl", "rb") as f:
                 split_lens = pickle.load(f)
             num_segments = split_lens[str(self.SPLIT)]
-            self.num_batches = (num_segments // self.BATCH_SIZE) - 1
+            self.num_batches = (num_segments // self.BATCH_SIZE) - 2
         return self.num_batches
     
     @override
     def __getitem__(self, idx):
         """Receives batch num and returns batch"""
         # Change cwd
-        os.chdir(f"{self.PATH}data/split/{self.SPLIT}/")
+        os.chdir(f"{self.PATH}data/shuffled/{self.SPLIT}/")
 
         # Check if new data needs to be loaded
         if self.BATCH_SIZE > len(self.x):
@@ -292,7 +292,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                     relu = ReLU()(normalize)
                     if group_ind == 0:
                         init_relu = relu
-                    dropout = Dropout(0.1)(relu)
+                    dropout = Dropout(0.2)(relu)
                     # Create convolution
                     if group_ind == len(bouncy_convs) - 1:
                         num_filters *= archi_params["scaling_factor"]
