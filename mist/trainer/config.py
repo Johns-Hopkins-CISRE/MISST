@@ -25,10 +25,11 @@ TUNER_FILE_TO_LOAD = { # Irrelevant if LOAD_TUNER_PARAMS is False
 
 # General Hyperparameters
 MODEL_PARAMS: ModelParams = {
-    "epochs":        200,
+    "epochs":        180,
     "batch_size":    16,
-    "learning_rate": 2e-3, #3.2e-4
-    "decay_steps":   40,
+    "learning_rate": 1e-5, #3.2e-4
+    "decay_steps":   354*180,
+    "alpha":         0.1,
     "optimizer":     Optimizers.ADAM,
     "model_type":    ModelType.BOTTLENECK,
 
@@ -47,8 +48,8 @@ MODEL_PARAMS: ModelParams = {
         ModelType.BOTTLENECK: {
             "init_kernel":    16,
 
-            "cnn_blocks":     4,
-            "bn_blocks":      3, # Abbrev. for "Bottleneck"
+            "cnn_blocks":     3, # 4
+            "bn_blocks":      2, # 3, Abbrev. for "Bottleneck"
             "conv_pattern":   [1,3], # Mirrored: 1,3,4 -> 1,3,4,3,1
             
             "filter_mult":    16,  # Filter multiplier

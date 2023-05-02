@@ -36,13 +36,13 @@ class PreProcessor():
         "SLEEP-S2":  1,
         "SLEEP-REM": 2
     }
-    DATASET_SPLIT = { # Needs to be out of 17
-        "TRAIN": 13,
-        "TEST":   2,
-        "VAL":    2
+    DATASET_SPLIT = {
+        "TRAIN":  5,
+        "TEST":   1,
+        "VAL":    1
     }
     BALANCE_RATIOS = { # The distribution of classes within each split
-        "TRAIN": {"S0": 1, "S2": 2, "REM": 1}, # Must be same order as self.ANNOTATIONS
+        "TRAIN": {"S0": 2, "S2": 3, "REM": 1}, # Must be same order as self.ANNOTATIONS
         "TEST":  {"S0": 1, "S2": 1, "REM": 1},
         "VAL":   {"S0": 1, "S2": 1, "REM": 1}
     }

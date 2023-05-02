@@ -14,7 +14,7 @@ from mist.predictor import predictor
 
 
 # Receives arguments from CLI
-parser = argparse.ArgumentParser(description="A Murinae-based Intelligent Staging Tool")
+parser = argparse.ArgumentParser(description="A Murine Intelligent Sleep Staging Tool")
 parser.add_argument("--mode", type=str, required=True, 
     help="Decides whether you'd like to train a new MIST model or use a pretrained model.",
     choices=["train", "generate"]

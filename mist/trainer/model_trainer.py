@@ -12,13 +12,17 @@ import random
 import os
 import datetime
 import pickle
+import sklearn
 import numpy as np
 import keras_tuner as kt
 import tensorflow as tf
+import tensorflow_addons as tfa
+import matplotlib.pyplot as plt
 from enum import Enum
 from overrides import override
 from typing import Any, Callable
 from contextlib import redirect_stdout
+from tqdm import tqdm
 from keras.layers import (
     Conv1D,
     Concatenate,
@@ -168,6 +172,22 @@ class DataGenerator(keras.utils.Sequence):
         self.y = []
 
 
+class LRTrackerCallback(tf.keras.callbacks.Callback):
+    """Tracks the Learning Rate"""
+
+    def __init__(self):
+        """Initializes Learning Rate Log"""
+        self.lr_logs = []
+
+    @override
+    def on_epoch_end(self, epoch, logs=None):
+        """Appends decayed learning rate if present"""
+        try:
+            self.lr_logs.append(self.model.optimizer._decayed_lr("float32").numpy())
+        except:
+            self.lr_logs.append(self.model.optimizer._lr("float32").numpy())
+
+
 class ModelTrainer(DistributedTrainer, TunerTrainer):
     """Creates and Trains Model"""
 
@@ -181,13 +201,23 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         log_dir = tensorboard_dir + "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         tensorboard_callback = keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-        return {"tensorboard_callback": tensorboard_callback}
+        # Define Learning Rate Tracker Callback
+        lr_tracker = LRTrackerCallback()
+
+        return {
+            "tensorboard_callback": tensorboard_callback,
+            "lr_tracker": lr_tracker
+        }
     
     @override
     def _preconfigured_metrics(self) -> dict[str, str | keras.metrics.Metric | Callable]:
-        """Creates default accuracy metric"""
-        accuracy = {"accuracy": keras.metrics.SparseCategoricalAccuracy()}
-        return accuracy
+        """Creates all metrics"""
+        metrics = {
+            "accuracy": keras.metrics.SparseCategoricalAccuracy(),
+            "cohen_kappa": tfa.metrics.CohenKappa(num_classes=3, sparse_labels=True),
+            #"f1_score": tfa.metrics.F1Score(num_classes=3) #TODO this might not be compatible w/ sparse labels
+        }
+        return metrics
 
     def _create_sdcc(self, preproc: PreProcessor, batch_size: int, archi_params: dict[str, Any]) -> keras.Model:
         """Creates an SDCC-BiLSTM"""
@@ -331,7 +361,8 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         """Creates two generators, one for training and one for validation"""
         train_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TRAIN, self.params["model_type"])
         val_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.VAL, self.params["model_type"])
-        return GeneratorDataset(train_gen, val_gen)
+        test_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TEST, self.params["model_type"])
+        return GeneratorDataset(train_gen, val_gen, test_gen)
 
     @override
     def _model_creator_wrapper(self, model_type: Enum, hp: kt.HyperParameters, param_to_tune: Any) -> keras.Model:
@@ -383,19 +414,10 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Compile model
         opt_func = self.params["optimizer"].value
-        lr_schedule = tf.keras.optimizers.schedules.CosineDecayRestarts(self.params["learning_rate"], self.params["decay_steps"])
+        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(self.params["learning_rate"], self.params["decay_steps"], alpha=self.params["alpha"])
         optimizer = opt_func(lr_schedule)
         metric_list = list(self.metrics.values())
         model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)
-
-        # Save plot of model
-        os.chdir(f"{self.PATH}models/")
-        keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
-
-        # Print out summary of model to txt
-        with open("model_summary.txt", "w") as f:
-            with redirect_stdout(f):
-                model.summary()
 
         # Print elapsed time
         elapsed = time.time() - start
@@ -410,11 +432,92 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         not work with distributed training. Any variables used by model.fit must be
         declared and initialized within this scope
         """
-
         # Run training
         callback_list = list(self.callbacks.values())
-        model.fit(x=data.train_gen, validation_data=(data.val_gen), epochs=self.params["epochs"], 
+        history = model.fit(x=data.train_gen, validation_data=(data.val_gen), epochs=self.params["epochs"], 
             callbacks=callback_list)
 
-        model.save(f"{self.PATH}models/")
-    
+        # Create the directory name
+        dirname = f"{self.params['model_type'].name}, {self.params['epochs']} Epoch, {history.history['val_sparse_categorical_accuracy'][-1]:.3f}% Accuracy"
+
+        # Create model directory
+        model_dir = f"{self.PATH}models/{dirname}"
+        if os.path.exists(model_dir):
+            i = 1
+            while os.path.exists(f"{model_dir} ({i})"): i += 1
+            model_dir = f"{model_dir} ({i})"
+        os.mkdir(model_dir)
+        os.chdir(model_dir)
+
+        # Save model
+        model.save(f"{model_dir}/saved_model/")
+
+        # Create specification directory
+        spec_dir = f"./model_specifications/"
+        if not os.path.exists(spec_dir):
+            os.mkdir(spec_dir)
+        os.chdir(spec_dir)
+
+        # Save plot of model
+        keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
+
+        # Print out summary of model to txt
+        with open("model_summary.txt", "w") as f:
+            with redirect_stdout(f):
+                model.summary()
+
+        # Create vis folder
+        vis_dir = f"../vis/"
+        if not os.path.exists(vis_dir):
+            os.mkdir(vis_dir)
+        os.chdir("../vis/")
+
+        # Create basic Training Progressional Metric Visualizations
+        VIS_CONFIGS = ["no_lr", "lr"]
+        PLOTTABLE_METRICS = ["loss", "sparse_categorical_accuracy", "cohen_kappa"]
+        for vis_config in tqdm(VIS_CONFIGS):
+            for metric in PLOTTABLE_METRICS:
+                # Plot data
+                plt.plot(history.history[metric], c="blue")
+                plt.plot(history.history[f"val_{metric}"], c="red")
+
+                # Handle config for plotting
+                if vis_config == "lr":
+                    lr_logs = np.interp(
+                        self.callbacks["lr_tracker"].lr_logs, 
+                        xp=(min(self.callbacks["lr_tracker"].lr_logs), max(self.callbacks["lr_tracker"].lr_logs)), 
+                        fp=(min(history.history[metric]), max(history.history[metric]))
+                    )
+                    plt.plot(lr_logs , c="green")
+                
+                # Convert variable name into English
+                metric_english = " ".join([word.capitalize() for word in metric.split('_')])
+
+                # Specify plot details
+                plt.title(f"{metric_english} Vs. Epochs")
+                plt.xlabel("Epochs")
+                plt.ylabel(metric_english)
+                if vis_config == "no_lr":
+                    plt.legend(["Train", "Validation"])
+                elif vis_config == "lr":
+                    plt.legend(["Train", "Validation", "Learning Rate"])
+            
+                # Save plot
+                if not os.path.exists(f"./{vis_config}/"):
+                    os.makedirs(f"./{vis_config}/")
+                plt.savefig(f"./{vis_config}/{metric}_vs_epochs.png", bbox_inches="tight")
+                plt.cla()
+        
+        # Sequentially gather test set predictions
+        preds, truths = [], []
+        for x, y_true in tqdm(data.test_gen, desc="Predicting on Test Set"):
+            preds.extend(np.argmax(model.predict(x, verbose=0)))
+            truths.extend(y_true)
+
+        # Generate confusion matrix from test set
+        LABELS = ["S0", "S2", "REM"]
+        confusion_matrix = sklearn.metrics.confusion_matrix(truths, preds)
+        cm_disp = sklearn.metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix, display_labels=LABELS)
+        cm_disp.plot()
+        os.chdir(model_dir)
+        plt.savefig(f"./confusion_matrix.png")
