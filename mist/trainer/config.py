@@ -25,11 +25,11 @@ TUNER_FILE_TO_LOAD = { # Irrelevant if LOAD_TUNER_PARAMS is False
 
 # General Hyperparameters
 MODEL_PARAMS: ModelParams = {
-    "epochs":        180,
+    "epochs":        600,
     "batch_size":    16,
-    "learning_rate": 1e-5, #3.2e-4
-    "decay_steps":   354*180,
-    "alpha":         0.1,
+    "learning_rate": 1e-4, #3.2e-4
+    "decay_steps":   354*200,
+    "alpha":         0.01,
     "optimizer":     Optimizers.ADAM,
     "model_type":    ModelType.BOTTLENECK,
 

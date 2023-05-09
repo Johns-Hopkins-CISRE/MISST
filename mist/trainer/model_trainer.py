@@ -10,6 +10,7 @@ import time
 import keras
 import random
 import os
+import sys
 import datetime
 import pickle
 import sklearn
@@ -18,6 +19,7 @@ import keras_tuner as kt
 import tensorflow as tf
 import tensorflow_addons as tfa
 import matplotlib.pyplot as plt
+import pandas as pd
 from enum import Enum
 from overrides import override
 from typing import Any, Callable
@@ -414,10 +416,10 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
 
         # Compile model
         opt_func = self.params["optimizer"].value
-        lr_schedule = tf.keras.optimizers.schedules.CosineDecay(self.params["learning_rate"], self.params["decay_steps"], alpha=self.params["alpha"])
+        lr_schedule = tf.keras.optimizers.schedules.CosineDecayRestarts(self.params["learning_rate"], self.params["decay_steps"], alpha=self.params["alpha"])
         optimizer = opt_func(lr_schedule)
         metric_list = list(self.metrics.values())
-        model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=metric_list)
+        model.compile(optimizer=optimizer, loss="sparse_categorical_crossentropy", metrics=metric_list)
 
         # Print elapsed time
         elapsed = time.time() - start
@@ -433,15 +435,17 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         declared and initialized within this scope
         """
         # Run training
+        start_train = datetime.datetime.now()
         callback_list = list(self.callbacks.values())
         history = model.fit(x=data.train_gen, validation_data=(data.val_gen), epochs=self.params["epochs"], 
             callbacks=callback_list)
+        print(f"Finished Training || Total Time: {datetime.datetime.now() - start_train}")
 
         # Create the directory name
         dirname = f"{self.params['model_type'].name}, {self.params['epochs']} Epoch, {history.history['val_sparse_categorical_accuracy'][-1]:.3f}% Accuracy"
 
         # Create model directory
-        model_dir = f"{self.PATH}models/{dirname}"
+        model_dir = f"{self.PATH}models/{dirname}/"
         if os.path.exists(model_dir):
             i = 1
             while os.path.exists(f"{model_dir} ({i})"): i += 1
@@ -457,6 +461,10 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         if not os.path.exists(spec_dir):
             os.mkdir(spec_dir)
         os.chdir(spec_dir)
+
+        # Save training log
+        hist_df = pd.DataFrame(history.history)
+        hist_df.to_csv("training_history.csv", index=False, encoding="utf-8")
 
         # Save plot of model
         keras.utils.plot_model(model, to_file="Keras_Model_Plot.png", show_shapes=True)
@@ -475,7 +483,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         # Create basic Training Progressional Metric Visualizations
         VIS_CONFIGS = ["no_lr", "lr"]
         PLOTTABLE_METRICS = ["loss", "sparse_categorical_accuracy", "cohen_kappa"]
-        for vis_config in tqdm(VIS_CONFIGS):
+        for vis_config in tqdm(VIS_CONFIGS, file=sys.stdout):
             for metric in PLOTTABLE_METRICS:
                 # Plot data
                 plt.plot(history.history[metric], c="blue")
@@ -494,7 +502,7 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                 metric_english = " ".join([word.capitalize() for word in metric.split('_')])
 
                 # Specify plot details
-                plt.title(f"{metric_english} Vs. Epochs")
+                plt.title(f"{metric_english} Vs. Iterations")
                 plt.xlabel("Epochs")
                 plt.ylabel(metric_english)
                 if vis_config == "no_lr":
@@ -505,19 +513,56 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                 # Save plot
                 if not os.path.exists(f"./{vis_config}/"):
                     os.makedirs(f"./{vis_config}/")
-                plt.savefig(f"./{vis_config}/{metric}_vs_epochs.png", bbox_inches="tight")
+                plt.savefig(f"./{vis_config}/{metric}_vs_epochs.png", bbox_inches="tight", transparent=True)
                 plt.cla()
         
+        # Standalone learning rate
+        lr_logs = self.callbacks["lr_tracker"].lr_logs
+        plt.plot(lr_logs, c="green")
+        plt.yticks(list(plt.yticks()[0]) + [0, max(lr_logs)])
+        plt.savefig(f"./lr/lr_vs_epochs.png", bbox_inches="tight", transparent=True, dpi=500)
+        plt.cla()
+
         # Sequentially gather test set predictions
-        preds, truths = [], []
-        for x, y_true in tqdm(data.test_gen, desc="Predicting on Test Set"):
-            preds.extend(np.argmax(model.predict(x, verbose=0)))
+        logits, truths = [], []
+        for x, y_true in tqdm(data.test_gen, desc="Predicting on Test Set", file=sys.stdout):
+            logits.extend(model.predict(x, verbose=0))
             truths.extend(y_true)
+        preds = [np.argmax(pred) for pred in logits]
+
+        # Calculate loss and accuracy of test predictions (f is for final)
+        f_test = {
+            "loss": tf.keras.losses.SparseCategoricalCrossentropy()(truths, logits),
+            "sparse_categorical_accuracy": np.sum(np.array(preds) == np.array(truths)) / len(preds),
+            "cohen_kappa": tfa.metrics.CohenKappa(num_classes=3, sparse_labels=True)(truths, logits)
+        }
+
+        # Create histograms of Train/Test/Val metrics
+        os.chdir(f"{model_dir}vis/")
+        for metric in PLOTTABLE_METRICS:
+            # Plot heights
+            heights = [
+                history.history[metric][-1],
+                history.history[f"val_{metric}"][-1],
+                f_test[metric]
+            ]
+            plt.bar_label(plt.bar(["Train", "Val", "Test"], heights))
+            
+            # Convert variable name into English
+            metric_english = " ".join([word.capitalize() for word in metric.split('_')])
+
+            # Edit graph details
+            plt.title(f"Data Split Vs. {metric_english}")
+            plt.xlabel("Data Split")
+            plt.ylabel(metric_english)
+            plt.savefig(f"./split_vs_{metric}.png", bbox_inches="tight", transparent=True, dpi=500)
+            plt.clf()
 
         # Generate confusion matrix from test set
         LABELS = ["S0", "S2", "REM"]
         confusion_matrix = sklearn.metrics.confusion_matrix(truths, preds)
         cm_disp = sklearn.metrics.ConfusionMatrixDisplay(confusion_matrix=confusion_matrix, display_labels=LABELS)
-        cm_disp.plot()
-        os.chdir(model_dir)
-        plt.savefig(f"./confusion_matrix.png")
+        cm_disp.plot(cmap="Blues")
+        plt.savefig(f"./confusion_matrix.png", dpi=500)
+        plt.close()
+

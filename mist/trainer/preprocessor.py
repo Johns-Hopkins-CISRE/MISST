@@ -41,10 +41,10 @@ class PreProcessor():
         "TEST":   1,
         "VAL":    1
     }
-    BALANCE_RATIOS = { # The distribution of classes within each split
-        "TRAIN": {"S0": 2, "S2": 3, "REM": 1}, # Must be same order as self.ANNOTATIONS
-        "TEST":  {"S0": 1, "S2": 1, "REM": 1},
-        "VAL":   {"S0": 1, "S2": 1, "REM": 1}
+    BALANCE_RATIOS = { # The distribution of classes within each split, "None" = "Do not balance"
+        "TRAIN": {"S0": None, "S2": None, "REM": None}, # 2, 3, 1
+        "TEST":  {"S0": None, "S2": None, "REM": None},
+        "VAL":   {"S0": 1,    "S2": 1,    "REM": 1   }
     }
     CHANNELS = ["EEG1", "EEG2", "EMGnu"] # Names of PSG channels that will be used
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
@@ -272,7 +272,7 @@ class PreProcessor():
         # Calculate how many samples must be removed from each category
         min_freq = min(samp_freq)
         balance_ratio = list(balance_ratio.values())
-        diff = [freq - round(min_freq * balance_ratio[ind]) for ind, freq in enumerate(samp_freq)]
+        diff = [freq - round(min_freq * balance_ratio[ind]) if balance_ratio[ind] != None else 0 for ind, freq in enumerate(samp_freq)]
 
         # Find all unbalanced annotations
         remove = []
