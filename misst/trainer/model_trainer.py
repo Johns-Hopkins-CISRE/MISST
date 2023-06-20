@@ -39,13 +39,13 @@ from keras.layers import (
     GlobalAveragePooling1D
 )
 
-from mist.trainer.utils.datasets import GeneratorDataset, ArrayDataset
-from mist.trainer.utils.enum_vals import Splits
-from mist.trainer.utils.trainers import DistributedTrainer, TunerTrainer
+from misst.trainer.utils.datasets import GeneratorDataset, ArrayDataset
+from misst.trainer.utils.enum_vals import Splits
+from misst.trainer.utils.trainers import DistributedTrainer, TunerTrainer
 
-from mist.trainer.project_enums import TrainingModes, ModelType, TuneableParams
-from mist.trainer.preprocessor import PreProcessor
-from mist.trainer.gui import GenericGUI, GUICallback
+from misst.trainer.project_enums import TrainingModes, ModelType, TuneableParams
+from misst.trainer.preprocessor import PreProcessor
+from misst.trainer.gui import GenericGUI, GUICallback
 
 
 class DistributedGUI(GenericGUI):

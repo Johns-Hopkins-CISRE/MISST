@@ -6,9 +6,9 @@
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
 
-from mist.trainer.utils.enum_vals import Optimizers, TunerType
-from mist.trainer.utils.req_params import ModelParams, TunerParams
-from mist.trainer.project_enums import TrainingModes, ModelType, TuneableParams
+from misst.trainer.utils.enum_vals import Optimizers, TunerType
+from misst.trainer.utils.req_params import ModelParams, TunerParams
+from misst.trainer.project_enums import TrainingModes, ModelType, TuneableParams
 
 
 # Modify These

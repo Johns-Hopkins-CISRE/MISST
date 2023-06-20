@@ -5,27 +5,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run MIST Trainer",
+            "name": "Run MISST Trainer",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
-            "module": "mist",
+            "module": "misst",
             "args": ["--mode", "train"]
         },
         {
-            "name": "Run MIST Generator",
+            "name": "Run MISST Generator",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
-            "module": "mist",
+            "module": "misst",
             "args": ["--mode", "generate"]
         },
         {
-            "name": "Unittest MIST PreProcessor",
+            "name": "Unittest MISST PreProcessor",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
-            "module": "mist.trainer.preprocessor",
+            "module": "misst.trainer.preprocessor",
         }
     ]
 }

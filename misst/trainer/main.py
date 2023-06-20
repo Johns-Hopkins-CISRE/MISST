@@ -9,14 +9,14 @@ __email__ = "hudsonliu0@gmail.com"
 import pickle
 import os
 
-from mist.trainer.config import *
-from mist.trainer.project_enums import TrainingModes
-from mist.trainer.model_trainer import DistributedGUI, ModelTrainer
-from mist.trainer.preprocessor import PreProcessor
+from misst.trainer.config import *
+from misst.trainer.project_enums import TrainingModes
+from misst.trainer.model_trainer import DistributedGUI, ModelTrainer
+from misst.trainer.preprocessor import PreProcessor
 
 
 def preprocess_and_train(path):
-    """Runs preprocessing and training of the MIST model"""
+    """Runs preprocessing and training of the MISST model"""
     # Preprocesses data
     if PREPROCESS_DATA:
         preproc = PreProcessor(path)

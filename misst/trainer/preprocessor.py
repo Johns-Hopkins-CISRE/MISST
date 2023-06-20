@@ -9,7 +9,6 @@ __email__ = "hudsonliu0@gmail.com"
 import os
 import sys
 import shutil
-import random
 import mne
 import pickle
 import pandas as pd
@@ -432,7 +431,7 @@ class PreProcessor():
 
 if __name__ == "__main__":
     """Unit-Test: Tests the PreProcessor's capabilities"""
-    PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MIST/"
+    PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MISST/"
     EDF_REGEX = r".*EDF\.edf$"
     HYPNOGRAM_REGEX = r"\bhynogram\.csv\b"
     preproc = PreProcessor(PATH, EDF_REGEX, HYPNOGRAM_REGEX)

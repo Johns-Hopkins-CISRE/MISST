@@ -21,8 +21,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from abc import ABC, abstractmethod
 
-from mist.trainer.utils.enum_vals import Optimizers
-from mist.trainer.project_enums import ModelType
+from misst.trainer.utils.enum_vals import Optimizers
+from misst.trainer.project_enums import ModelType
 
 
 class GenericGUI(ABC):
