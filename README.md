@@ -13,7 +13,7 @@
 
 MISST employs deep neural networks to **automate the grading of murinae polysomnograms** (PSGs). This program was developed as part of a research project conducted at the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*. By using a combination of residual connections, Bottleneck blocks, and fully-connected layers, MISST is able to classify raw PSGs **with little to no preprocessing**, while still remaining **lightweight** and **consistent**.
 
-Despite the plethora of existing sleep staging algorithms, none were adept at grading Murine sleep patterns. MISST reached a validation accuracy of 87.6% and a Cohen's Kappa of 0.74.
+Despite the abundance of existing sleep staging algorithms, none were adept at grading Murine sleep patterns. MISST reached a validation accuracy of 87.6% and a Cohen's Kappa of 0.74.
 
 # Features
 - Bottlenecked CNN with a Preactivation ResNet structure
@@ -104,7 +104,7 @@ Before using MISST, the config.py file must be properly configured. To configure
 # Generating Annotations
 To create annotations for your given dataset using MISST's **pretrained** model, just navigate to the directory in which you installed MISST, then enter the following command:
 ```shell
-C:\...\MISST> python -m mist --mode generate
+C:\...\MISST> python -m misst --mode generate
 ```
 The annotations will be exported in the directory`~/MISST/data/annots/`. Each PSG recording will get it's own individual annots file, with the name of each annots file corresponding to the name of it's respective PSG recording's directory: `annots_[dir name].csv`.
 This annots file will be formatted as follows:
@@ -127,7 +127,7 @@ Follow these steps if you'd like to train a new model using MISST's ModelTrainer
     | DIST      | Trains using a distributed computing network        | ❌ Not Working    | 
 2. Navigate to the directory in which you installed MISST, then enter the following line into the Command Prompt: 
     ```shell
-    C:\...\MISST> python -m mist --mode train
+    C:\...\MISST> python -m misst --mode train
     ```
 
 # Contributors

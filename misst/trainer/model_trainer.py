@@ -40,10 +40,8 @@ from keras.layers import (
 )
 
 from misst.trainer.utils.datasets import GeneratorDataset, ArrayDataset
-from misst.trainer.utils.enum_vals import Splits
 from misst.trainer.utils.trainers import DistributedTrainer, TunerTrainer
 
-from misst.trainer.project_enums import TrainingModes, ModelType, TuneableParams
 from misst.trainer.preprocessor import PreProcessor
 from misst.trainer.gui import GenericGUI, GUICallback
 
@@ -56,7 +54,7 @@ class DistributedGUI(GenericGUI):
     """
 
     @override
-    def __init__(self, path: str, export_dir: str, mode: TrainingModes):
+    def __init__(self, path: str, export_dir: str, mode: str):
         """Overrides GenericGUI's init to allow for parameters used by _train_model()"""
         self.MODE = mode
         self.EXPORT_DIR = export_dir
@@ -75,11 +73,11 @@ class DistributedGUI(GenericGUI):
         
         # Trains based on mode
         match self.MODE:
-            case TrainingModes.GUI:
+            case "GUI":
                 trainer.basic_train()
-            case TrainingModes.DIST_GUI:
+            case "DIST_GUI":
                 trainer.dist_train()
-            case TrainingModes.TUNER_GUI:
+            case "TUNER_GUI":
                 trainer.tuner_train()
     
 
@@ -87,7 +85,7 @@ class DataGenerator(keras.utils.Sequence):
     """Sequentially loads saved preprocessed data"""
 
     @override
-    def __init__(self, path: str, batch_size: int, split: Splits, model_type: ModelType):
+    def __init__(self, path: str, batch_size: int, split: str, model_type: str):
         """Initialize global vars"""
         self.PATH = path
         self.BATCH_SIZE = batch_size
@@ -140,11 +138,11 @@ class DataGenerator(keras.utils.Sequence):
         # Obtain data slice to return
         slice_x, slice_y = self.x[:self.BATCH_SIZE], self.y[:self.BATCH_SIZE]
         match self.MODEL_TYPE:
-            case ModelType.SDCC:
+            case "sdcc":
                 slice_x, slice_y = self._sdcc_slices(slice_x, slice_y)
-            case ModelType.BOTTLENECK:
+            case "bottleneck":
                 slice_x, slice_y = self._bn_slices(slice_x, slice_y)
-            case other:
+            case _:
                 raise ValueError("ModelType must have a defined associated DataGenerator method")
 
         # Dispose of old data (start will always be zero)
@@ -361,18 +359,18 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
     @override
     def _import_data(self) -> GeneratorDataset | ArrayDataset: 
         """Creates two generators, one for training and one for validation"""
-        train_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TRAIN, self.params["model_type"])
-        val_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.VAL, self.params["model_type"])
-        test_gen = DataGenerator(self.PATH, self.params["batch_size"], Splits.TEST, self.params["model_type"])
+        train_gen = DataGenerator(self.PATH, self.params["batch_size"], "train", self.params["model_type"])
+        val_gen = DataGenerator(self.PATH, self.params["batch_size"], "val", self.params["model_type"])
+        test_gen = DataGenerator(self.PATH, self.params["batch_size"], "Splits.TEST", self.params["model_type"])
         return GeneratorDataset(train_gen, val_gen, test_gen)
 
     @override
     def _model_creator_wrapper(self, model_type: Enum, hp: kt.HyperParameters, param_to_tune: Any) -> keras.Model:
         """Sets the model parameters according to the KerasTuner 'hp' obj"""
         match param_to_tune:
-            case TuneableParams.MODEL:
+            case "model":
                 archi_params = self.params["archi_params"][model_type]
-                if model_type == ModelType.SDCC: #use prev params as defaults
+                if model_type == "sdcc":
                     archi_params["filters"]      = hp.Int("filters",      min_value=1,  max_value=10,  default=6,   step=1 )
                     archi_params["conv_layers"]  = hp.Int("conv_layers",  min_value=1,  max_value=10,  default=5,   step=1 )
                     archi_params["sdcc_blocks"]  = hp.Int("sdcc_blocks",  min_value=1,  max_value=4,   default=2,   step=1 )
@@ -380,13 +378,13 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
                     archi_params["lstm_layers"]  = hp.Int("lstm_layers",  min_value=1,  max_value=5,   default=2,   step=1 )
                     archi_params["dense_nodes"]  = hp.Int("dense_nodes",  min_value=20, max_value=500, default=320, step=20)
                     archi_params["dense_layers"] = hp.Int("dense_layers", min_value=1,  max_value=5,   default=1,   step=1 )
-                elif model_type == ModelType.BOTTLENECK:
+                elif model_type == "bottleneck":
                     archi_params["init_kernel"]    = hp.Int("init_kernel",   min_value=12, max_value=20, default=16, step=1)
                     archi_params["cnn_blocks"]     = hp.Int("cnn_blocks",    min_value=2,  max_value=6,  default=4,  step=1)
                     archi_params["bn_blocks"]      = hp.Int("bn_blocks",     min_value=1,  max_value=5,  default=3,  step=1)
                     archi_params["filter_mult"]    = hp.Int("filter_mult",   min_value=4,  max_value=32, default=16, step=4)
                     archi_params["scaling_factor"] = hp.Int("scaling_factor", min_value=1, max_value=8,  default=4,  step=1)
-            case TuneableParams.LR:
+            case "lr":
                 self.params["learning_rate"] = hp.Float("learning_rate", min_value=1e-4, max_value=1e-2, sampling="log")
         
         # Create model
@@ -409,9 +407,9 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         # Create model based on specified model type
         archi_params = self.params["archi_params"][model_type]
         match model_type:
-            case ModelType.SDCC:
+            case "sdcc":
                 model = self._create_sdcc(preproc, batch_size, archi_params)
-            case ModelType.BOTTLENECK:
+            case "bottleneck":
                 model = self._create_bottleneck(preproc, batch_size, archi_params)
 
         # Compile model

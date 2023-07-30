@@ -25,9 +25,8 @@ from abc import ABC, abstractmethod
 from tqdm import tqdm
 from overrides import override
 
-from .req_params import ModelParams, TunerParams
-from .enum_vals import TunerType
 from .datasets import GeneratorDataset, ArrayDataset
+from .req_params import ModelParams, TunerParams
 
 
 class BaseTrainer(ABC):
@@ -205,8 +204,8 @@ class TunerTrainer(BaseTrainer, ABC):
         
         # Match input word w/ tuner
         match self.tuner_params["tuner_type"]:
-            case TunerType.HYPERBAND:
-                tuner_config = self.tuner_params["tuner_configs"][TunerType.HYPERBAND]
+            case "hyperband":
+                tuner_config = self.tuner_params["tuner_configs"]["hyperband"]
                 tuner = kt.Hyperband(
                     self.__tuner_wrapper,
                     objective=self.tuner_params["goal"],
@@ -215,8 +214,8 @@ class TunerTrainer(BaseTrainer, ABC):
                     directory=dir_path,
                     project_name="Hyperband"
                 )
-            case TunerType.BAYESIAN:
-                tuner_config = self.tuner_params["tuner_configs"][TunerType.BAYESIAN]
+            case "bayesian":
+                tuner_config = self.tuner_params["tuner_configs"]["bayesian"]
                 tuner = kt.BayesianOptimization(
                     self.__tuner_wrapper,
                     objective=self.tuner_params["goal"],

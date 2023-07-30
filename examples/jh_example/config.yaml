@@ -1,0 +1,59 @@
+# config.yaml: Specifies the configurations necessary for MISST
+
+# Modify These
+edf_regex: '.*EDF\.edf$'
+hypnogram_regex: '\bhynogram\.csv\b'
+mode: PLAIN # ["PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"]
+
+# PreProcessor & Weight-Loading Parameters
+export_dir: data # Default is "data"
+preprocess_data: False # Default is False, set as True to override existing data
+load_tuned_archi: False # Default is True, set as False to manually configure "params" var
+tuner_file_to_load: # Irrelevant if LOAD_TUNER_PARAMS is False
+  tuner_type:  hyperband # ["hyperband", "bayesian"]
+  tuned_param: model # ["model", "lr"]
+
+# General/Model Hyperparameters
+model_params:
+  epochs:        600
+  batch_size:    16
+  learning_rate: 1.e-4 # 3.2e-4
+  decay_steps:   70800 # 354*200
+  alpha:         0.01
+  optimizer:     adam # [Any Keras optimizer is valid (all lowercase)]
+  model_type:    bottleneck # ["bottleneck", "sdcc"]
+
+  archi_params:
+    sdcc:
+      filters:       6
+      conv_layers:   5
+      sdcc_blocks:   2
+
+      lstm_nodes:    200
+      lstm_layers:   2
+
+      dense_nodes:   320
+      dense_layers:  1
+    bottleneck:
+      init_kernel:    16
+
+      cnn_blocks:     3 # 4
+      bn_blocks:      2 # 3, Abbrev. for "Bottleneck"
+      conv_pattern:   [1,3] # Mirrored: 1,3,4 -> 1,3,4,3,1
+            
+      filter_mult:    16  # Filter multiplier
+      scaling_factor: 4  # Factor by which init val is multiplied and later compensation is applied
+
+# "TunerTrainer"-specific Parameters
+tuner_params:
+  tuner_type:     hyperband # ["hyperband", "bayesian"] 
+  params_to_tune: model # ["model", "lr"]
+  goal:           val_sparse_categorical_accuracy
+  dir_name:       tuner_results
+
+  tuner_configs: 
+    hyperband:
+      max_epochs: 1
+      factor:     3
+    bayesian:
+      num_trials: 20

@@ -9,15 +9,13 @@ __email__ = "hudsonliu0@gmail.com"
 from typing import Any, TypedDict
 from enum import Enum
 
-from .enum_vals import Optimizers, TunerType
-
 
 class ModelParams(TypedDict):
     """General Model/Training Hyperparameters; required by all subclasses of BaseTrainer"""
     epochs: int
     batch_size: int
     learning_rate: float
-    optimizer: Optimizers
+    optimizer: str
     model_type: Enum
     archi_params: dict[Enum, dict[str, Any]]
 
@@ -32,13 +30,13 @@ class _BayesianParams(TypedDict):
 
 
 class _TunerConfigs(TypedDict):
-    TunerType.HYPERBAND: _HyperbandParams
-    TunerType.BAYESIAN: _BayesianParams
+    hyperband: _HyperbandParams
+    bayesian: _BayesianParams
 
 
 class TunerParams(TypedDict):
     """Parameters for model tuning; required by TunerTrainer"""
-    tuner_type: TunerType
+    tuner_type: str
     params_to_tune: Enum
     goal: str
     dir_name: str

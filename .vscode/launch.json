@@ -5,12 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run MISST Trainer",
+            "name": "Run MISST JH Example Trainer",
             "type": "python",
             "request": "launch",
             "console": "integratedTerminal",
-            "module": "misst",
-            "args": ["--mode", "train"]
+            "program": "examples/jh_example/train.py",
         },
         {
             "name": "Run MISST Generator",

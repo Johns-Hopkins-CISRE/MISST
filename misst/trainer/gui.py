@@ -21,9 +21,6 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from abc import ABC, abstractmethod
 
-from misst.trainer.utils.enum_vals import Optimizers
-from misst.trainer.project_enums import ModelType
-
 
 class GenericGUI(ABC):
     """
@@ -314,8 +311,8 @@ class GenericGUI(ABC):
                 "epochs": int(self.epochs.get()),
                 "batch_size": int(self.batches.get()),
                 "learning_rate": float(self.lr.get()),
-                "model_type": ModelType.convert(model_type),
-                "optimizer": Optimizers.convert(optimizer),
+                "model_type": model_type,
+                "optimizer": optimizer,
                 "filters": int(self.filters.get()),
                 "conv_layers": int(self.conv.get()),
                 "sdcc_blocks": int(self.sdcc.get()),
