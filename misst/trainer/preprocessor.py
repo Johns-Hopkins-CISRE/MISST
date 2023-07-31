@@ -17,6 +17,8 @@ from tqdm import tqdm
 import glob
 import re
 
+from misst.trainer.utils.error_handler import short_err
+
 
 class MissingChannelsException(Exception):
     """Acts as a flag for when a PSG is missing channels"""
@@ -77,10 +79,9 @@ class PreProcessor():
         """Returns a single RawEDF for the purpose of determining edf info"""
         try:
             return mne.io.read_raw_edf(f"{self.PATH}data/raw/1/BASAL FEMALE B6 280 20211019 LJK - EDF.edf")
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                "The example edf could not be found, try checking the 'raw' directory's structure."
-            )
+        except FileNotFoundError as err:
+            msg = "The example edf could not be found, try checking the 'raw' directory's structure."
+            short_err(msg, err)
 
     def get_edf_info(self, edf: mne.io.BaseRaw) -> float:
         """For a given edf, returns the sample rate and number of channels"""
@@ -228,11 +229,10 @@ class PreProcessor():
 
         # Don't append data if it's not a 1:1 ratio
         if event_samples != int(np.size(edf_array, axis=1)):
-            raise ValueError(
-                f"Directory \"{directory}\": " + 
-                "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
-                "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt."
-            )
+            msg = (f"Directory \"{directory}\": " + 
+                 "The number of events in events.csv did not match the number of samples in the .edf PSG. " +
+                 "The .csv file likely contains more events than the .edf file, check if the .edf is corrupt.")
+            short_err(msg, ValueError(msg))
         
         # Remove unbalanced data
         annots, remove, rand_shuf = self.__proc_labels(labels, balance_ratio)

@@ -25,6 +25,7 @@ from abc import ABC, abstractmethod
 from tqdm import tqdm
 from overrides import override
 
+from .error_handler import short_err
 from .datasets import GeneratorDataset, ArrayDataset
 from .req_params import ModelParams, TunerParams
 
@@ -36,7 +37,11 @@ class BaseTrainer(ABC):
         """Defines class-level variables that all subclasses can access"""
         # Validate and define path
         if not os.path.isdir(f"{path}{export_dir}/"):
-            raise ValueError(f"Path '{path}{export_dir}' does not exist.")
+            msg = (f"The selected export directory," +
+                "\"{path}{export_dir}\", does not exist. Try checking " +
+                "the \"config.yaml\" file, and make sure that the " +
+                "\"export_dir\" value is correct.")
+            short_err(msg, ValueError(msg))
         self.PATH = path
         self.EXPORT_DIR = export_dir
         

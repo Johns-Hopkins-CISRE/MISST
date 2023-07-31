@@ -39,6 +39,7 @@ from keras.layers import (
     GlobalAveragePooling1D
 )
 
+from misst.trainer.utils.error_handler import short_err
 from misst.trainer.utils.datasets import GeneratorDataset, ArrayDataset
 from misst.trainer.utils.trainers import DistributedTrainer, TunerTrainer
 
@@ -103,7 +104,14 @@ class DataGenerator(keras.utils.Sequence):
         self.num_batches = None
 
         # Find all files
-        os.chdir(f"{self.PATH}data/shuffled/{self.SPLIT}/")
+        try:
+            os.chdir(f"{self.PATH}data/shuffled/{self.SPLIT}/")
+        except FileNotFoundError as err:
+            msg = ("The post-preprocessing data directory is missing; " +
+                "make sure to preprocess your data before attempting to train " +
+                "the model. To do this, go to the config.yaml, and set the " +
+                "\"preprocess_data\" flag to \"True\"")
+            short_err(msg, err)
         self.all_recs = os.listdir()
         random.shuffle(self.all_recs)
     

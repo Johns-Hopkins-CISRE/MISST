@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "misst"
+version = "0.9.1"
+description = "Automated murine polysomnogram sleep staging for Python."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Hudson Liu", email = "hudsonliu0@gmail.com"},
+]
+keywords = ["misst", "sleep staging", "murine", "polysomnogram", "machine learning"]
+dependencies = [
+    "keras >= 2.9.0",
+    "keras_tuner >= 1.1.3",
+    "matplotlib >= 3.6.2",
+    "mne >= 1.3.0",
+    "numpy >= 1.22.3",
+    "overrides >= 7.3.1",
+    "pandas >= 1.5.2",
+    "pyyaml >= 6.0.1",
+    "scikit_learn >= 1.3.0",
+    "tensorflow >= 2.9.1",
+    "tensorflow_addons >= 0.20.0",
+    "tqdm >= 4.64.1"
+]
+
+[project.urls]
+Repository = "https://github.com/Johns-Hopkins-CISRE/MISST"

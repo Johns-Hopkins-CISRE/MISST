@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""__main__.py: Defines high-level methods for running MISST"""
+"""api.py: Defines high-level methods for running MISST"""
 
 __author__ = "Hudson Liu"
 __email__ = "hudsonliu0@gmail.com"
@@ -21,13 +21,16 @@ def __validate_yaml_values(config: dict):
     Note that this does not check for valid key-value pairs; it is
     assumed that all requisite key-value pairs exist.
     """
+    # Quickly define the temporary model parameter variable
+    model_params = config["model_params"]
+
     # Check for model-type mismatch
-    if config["model_type"] not in config["archi_params"]:
+    if model_params["model_type"] not in model_params["archi_params"]:
         raise ValueError("The \"model_type\" entry in the config.yaml file is invalid; \
             the value of \"model_type\" must match one of the \"archi_params\" keys.")
     
     # Check for tuner-type mismatch
-    if config["model_type"] not in config["archi_params"]:
+    if model_params["model_type"] not in model_params["archi_params"]:
         raise ValueError("The \"tuner_configs\" entry in the config.yaml file is invalid; \
             the value of \"model_type\" must match one of the \"archi_params\" keys.")
     
@@ -38,7 +41,7 @@ def preprocess_and_train(config: dict, path: str):
     __validate_yaml_values(config)
 
     # Preprocesses data
-    if config.preprocess_data:
+    if config["preprocess_data"]:
         preproc = PreProcessor(path)
         preproc.import_and_preprocess()
         preproc.regroup()
@@ -59,13 +62,13 @@ def preprocess_and_train(config: dict, path: str):
         with open(filename, "rb") as f:
             best_hps = pickle.load(f)
         # Adjusts parameters accordingly
-        match ["tuner_file_to_load"]["tuned_params"]:
+        match config["tuner_file_to_load"]["tuned_params"]:
             case "model":
                 model_params["archi_params"][model_params["model_type"]].update(best_hps)
             case "lr":
                 model_params.update(best_hps)
             case _:
-                raise ValueError("The \"tuned_param\" entry in the YAML configuration file is invalid.")
+                raise ValueError("The \"tuned_param\" entry in the YAML configuration file is invalid.") from None
 
     # Runs training according to declared training method
     match config["mode"]: 
@@ -81,4 +84,4 @@ def preprocess_and_train(config: dict, path: str):
         case "GUI" | "DIST_GUI" | "TUNER_GUI":
             DistributedGUI(path, config["export_dir"], config["mode"])
         case _:
-            raise ValueError(f"The \"mode\" entry in the YAML configuration file is invalid.")
+            raise ValueError(f"The \"mode\" entry in the YAML configuration file is invalid.") from None
