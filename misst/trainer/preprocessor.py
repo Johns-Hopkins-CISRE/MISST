@@ -32,29 +32,29 @@ class PreProcessor():
     GROUP_LEN = 100 # Length of each segment
     RECORDING_LEN = 10 # 10 seconds
     DOWNSAMPLING_RATE = 10 # Must be a factor of sample_rate, 10x downsample, 1000 samples per 10 secs
-    ANNOTATIONS = { # Must be whole numbers increasing by one
-        "SLEEP-S0":  0,
-        "SLEEP-S2":  1,
-        "SLEEP-REM": 2
-    }
-    DATASET_SPLIT = {
-        "TRAIN":  5,
-        "TEST":   1,
-        "VAL":    1
-    }
-    BALANCE_RATIOS = { # The distribution of classes within each split, "None" = "Do not balance"
-        "TRAIN": {"S0": None, "S2": None, "REM": None}, # 2, 3, 1
-        "TEST":  {"S0": None, "S2": None, "REM": None},
-        "VAL":   {"S0": 1,    "S2": 1,    "REM": 1   }
-    }
-    CHANNELS = ["EEG1", "EEG2", "EMGnu"] # Names of PSG channels that will be used
     RANDOM_SEED = 952 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
+    SLEEP_STAGE_ENCODINGS = {
+        "S0":  0,
+        "S2":  1,
+        "REM": 2
+    }
 
-    def __init__(self, path: str, edf_regex: str = None, hypnogram_regex: str = None):
+    def __init__(self, 
+        path: str, annotations: dict, 
+        dataset_split: dict,
+        balance_ratios: dict,
+        channels: list[str],
+        edf_regex: str = "\.edf$", 
+        hypnogram_regex: str = "\.csv"
+    ):
         self.PATH = path
+        self.ANNOTATIONS = annotations
+        self.DATASET_SPLIT = dataset_split
+        self.BALANCE_RATIOS = balance_ratios
+        self.CHANNELS = channels
         self.EDF_REGEX = edf_regex
-        self.HYPNOGRAM_REGEX = hypnogram_regex
+        self.HYPNOGRAM_REGEX = hypnogram_regex 
         
         self.__mins = None
         self.__maxs = None
@@ -257,7 +257,7 @@ class PreProcessor():
         annots = []
         samp_freq = [0] * len(self.ANNOTATIONS)
         for event in labels:
-            encoded = self.ANNOTATIONS[event[0]]
+            encoded = self.SLEEP_STAGE_ENCODINGS[list(self.ANNOTATIONS.keys())[list(self.ANNOTATIONS.values()).index(event[0])]]
             annots.append(encoded)
             samp_freq[encoded] += 1
         annots = np.array(annots)

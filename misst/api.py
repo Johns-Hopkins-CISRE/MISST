@@ -9,6 +9,8 @@ __email__ = "hudsonliu0@gmail.com"
 import pickle
 import os
 
+from misst.trainer.utils.error_handler import short_err
+
 from misst.trainer.model_trainer import DistributedGUI, ModelTrainer
 from misst.trainer.preprocessor import PreProcessor
 
@@ -42,11 +44,17 @@ def preprocess_and_train(config: dict, path: str):
 
     # Preprocesses data
     if config["preprocess_data"]:
-        preproc = PreProcessor(path)
+        preproc = PreProcessor(path, 
+            config["annotations"],
+            config["dataset_split"],
+            config["balance_ratios"],
+            config["channels"],
+            config["edf_regex"],
+            config["hypnogram_regex"]
+        )
         preproc.import_and_preprocess()
         preproc.regroup()
         preproc.group_shuffle()
-        preproc.split_dataset()
         preproc.save_len()
 
     # Defines training parameters
@@ -68,7 +76,8 @@ def preprocess_and_train(config: dict, path: str):
             case "lr":
                 model_params.update(best_hps)
             case _:
-                raise ValueError("The \"tuned_param\" entry in the YAML configuration file is invalid.") from None
+                msg = "The \"tuned_param\" entry in the YAML configuration file is invalid."
+                short_err(msg, ValueError(msg))
 
     # Runs training according to declared training method
     match config["mode"]: 

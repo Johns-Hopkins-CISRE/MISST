@@ -1,19 +1,58 @@
-# config.yaml: Specifies the configurations necessary for MISST
-
-# Modify These
-edf_regex: '.*EDF\.edf$'
-hypnogram_regex: '\bhynogram\.csv\b'
-mode: PLAIN # ["PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"]
+#  ██████╗ ██████╗ ███╗   ██╗███████╗██╗ ██████╗ ██╗   ██╗██████╗  █████╗ ██████╗ ██╗     ███████╗
+# ██╔════╝██╔═══██╗████╗  ██║██╔════╝██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝
+# ██║     ██║   ██║██╔██╗ ██║█████╗  ██║██║  ███╗██║   ██║██████╔╝███████║██████╔╝██║     █████╗  
+# ██║     ██║   ██║██║╚██╗██║██╔══╝  ██║██║   ██║██║   ██║██╔══██╗██╔══██║██╔══██╗██║     ██╔══╝  
+# ╚██████╗╚██████╔╝██║ ╚████║██║     ██║╚██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝███████╗███████╗
+#  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝
+# ================ [The following parameters should be edited to fit your dataset] ===============
 
 # PreProcessor & Weight-Loading Parameters
+edf_regex: '^(?!vent\.edf$).*\.edf$'
+hypnogram_regex: '\bhynogram\.csv\b'
 export_dir: data # Default is "data"
-preprocess_data: False # Default is False, set as True to override existing data
+preprocess_data: True # Default is True, set as False to use pre-existing preprocessed data
+annotations: # The annotations used to denote S0, S2, and REM sleep stages
+  S0:  SLEEP-S0
+  S2:  SLEEP-S2
+  REM: SLEEP-REM
+dataset_split: # The ratio of train, test, and validation sets
+  TRAIN:  5
+  TEST:   1
+  VAL:    1
+balance_ratios: # The distribution of classes within each split, "null" = "Do not balance"
+  TRAIN: 
+    S0:  null
+    S2:  null 
+    REM: null # 2, 3, 1
+  TEST:
+    S0:  null
+    S2:  null 
+    REM: null
+  VAL:
+    S0:  1
+    S2:  1 
+    REM: 1
+channels: [EEG1, EEG2, EMGnu] # Names of PSG channels that will be used
+
+
+# ██████╗  ██████╗ ███╗   ██╗████████╗    ████████╗ ██████╗ ██╗   ██╗ ██████╗██╗  ██╗
+# ██╔══██╗██╔═══██╗████╗  ██║╚══██╔══╝    ╚══██╔══╝██╔═══██╗██║   ██║██╔════╝██║  ██║
+# ██║  ██║██║   ██║██╔██╗ ██║   ██║          ██║   ██║   ██║██║   ██║██║     ███████║
+# ██║  ██║██║   ██║██║╚██╗██║   ██║          ██║   ██║   ██║██║   ██║██║     ██╔══██║
+# ██████╔╝╚██████╔╝██║ ╚████║   ██║          ██║   ╚██████╔╝╚██████╔╝╚██████╗██║  ██║
+# ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝   ╚═╝          ╚═╝    ╚═════╝  ╚═════╝  ╚═════╝╚═╝  ╚═╝
+# ============= [Don't change these unless you know what you're doing] ==============
+
+# Training Specifications
+mode: PLAIN # ["PLAIN", "DIST", "TUNER", "GUI", "DIST GUI", "TUNER GUI"]
+
+# Automatic "model_param" Loading
 load_tuned_archi: False # Default is True, set as False to manually configure "params" var
 tuner_file_to_load: # Irrelevant if LOAD_TUNER_PARAMS is False
   tuner_type:  hyperband # ["hyperband", "bayesian"]
   tuned_param: model # ["model", "lr"]
 
-# General/Model Hyperparameters
+# Manual "model_param" Specification
 model_params:
   epochs:        600
   batch_size:    16
