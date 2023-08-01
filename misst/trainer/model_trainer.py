@@ -571,4 +571,3 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
         cm_disp.plot(cmap="Blues")
         plt.savefig(f"./confusion_matrix.png", dpi=500)
         plt.close()
-

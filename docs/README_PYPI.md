@@ -50,6 +50,7 @@ At a high-level, MISST can be thought of as TensorFlow-based *model training app
 
 Importing MISST into a Python project is as simple as `import misst`. However, in order to *use* any of MISST's functions, there are several **supplementary files** that must be placed alongside your Python script. Conceptually, MISST uses the following **file pipeline**:
 
+<br>
 <img align="center" width="100%" src="https://github.com/Johns-Hopkins-CISRE/MISST/blob/main/docs/diagrams/file_pipelines.png?raw=true">
 
 In practice, the **directory tree** of a MISST project should look as follows:
@@ -106,13 +107,51 @@ Each Hypnogram ".csv" file should follow this format:
 **Disclaimer**: MISST is still in development. Johns Hopkins is not liable for any incorrect or misleading predictions outputted by the MISST model.
 
 # Code Completion
-The following table represents current progress on MISST.
-  | Mode Name | Description                                         | Current Status    |
-  | --------- | --------------------------------------------------- | ----------------- |
-  | PLAIN     | Basic model training mode                           | ✅ Working        |
-  | TUNER     | Uses a KerasTuner during training                   | ✅ Working        |
-  | GUI       | Provides a GUI for real-time training visualization | ❌ Not Working    |
-  | DIST      | Trains using a distributed computing network        | ❌ Not Working    | 
+The following table represents current progress on MISST:
+<table>
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Feature</th>
+      <th>Description</th>
+      <th>Current Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="4">Trainer</td>
+      <td>"PLAIN" Mode</td>
+      <td>Basic model training mode</td>
+      <td>✅ Finished</td>
+    </tr>
+    <tr>
+      <td>"TUNER" Mode</td>
+      <td>Uses a KerasTuner during training</td>
+      <td>✅ Finished</td>
+    </tr>
+    <tr>
+      <td>"GUI" Mode</td>
+      <td>Provides a GUI for real-time training visualization</td>
+      <td>🚧 In Progress</td>
+    </tr>
+    <tr>
+      <td>"DIST" Mode</td>
+      <td>Trains using a distributed computing network</td>
+      <td>🚧 In Progress</td>
+    </tr>
+    <tr>
+      <td rowspan="2">Predictor</td>
+      <td>Hypnograms</td>
+      <td>Create hypnograms from inputted polysomnogram</td>
+      <td>❌ Not Started</td>
+    </tr>
+    <tr>
+      <td>Azure Webapp</td>
+      <td>Interactive web-app for Hypnogram prediction</td>
+      <td>❌ Not Started</td>
+    </tr>
+  </tbody>
+</table>
 
 # Contributors
 ### Lead Developer: Hudson Liu &bull; 🖥️ GitHub [@hudson-liu](https://github.com/Hudson-Liu) &bull; 📧 Email hudsonliu0@gmail.com

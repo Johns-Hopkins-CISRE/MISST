@@ -32,7 +32,7 @@ class PreProcessor():
     GROUP_LEN = 100 # Length of each segment
     RECORDING_LEN = 10 # 10 seconds
     DOWNSAMPLING_RATE = 10 # Must be a factor of sample_rate, 10x downsample, 1000 samples per 10 secs
-    RANDOM_SEED = 952 # Random seed used by NumPy random generator
+    RANDOM_SEED = 97109111103117115 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
     SLEEP_STAGE_ENCODINGS = {
         "S0":  0,

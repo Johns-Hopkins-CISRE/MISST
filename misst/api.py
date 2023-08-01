@@ -37,9 +37,7 @@ def __validate_yaml_values(config: dict):
         msg = "The \"tuner_configs\" entry in the config.yaml file is invalid; \
             the value of \"model_type\" must match one of the \"archi_params\" keys."
         short_err(msg, ValueError(msg))
-        
     
-
 def preprocess_and_train(config: dict, path: str):
     """Runs preprocessing and training of the MISST model"""
     # Verify config
@@ -98,4 +96,3 @@ def preprocess_and_train(config: dict, path: str):
         case _:
             msg = f"The \"mode\" entry in the YAML configuration file is invalid."
             short_err(msg, ValueError(msg))
-        

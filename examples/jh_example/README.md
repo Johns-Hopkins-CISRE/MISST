@@ -1,1 +1,0 @@
-A demonstration of MISST using Johns Hopkins' Murine Dataset (provided by Lenise Kim & Dr. Luu Pham)
