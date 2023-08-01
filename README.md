@@ -52,28 +52,28 @@ C:\...> pip install misst
 # Using MISST
 At a high-level, MISST can be thought of as TensorFlow-based *model training application* designed specifically for processing murine polysomnograms.
 
-Importing MISST into a Python project is as simple as `import misst`. However, in order to *use* any of MISST's functions, there are several supplementary files that must be placed alongside your Python script. Conceptually, MISST uses the following file pipeline:
+Importing MISST into a Python project is as simple as `import misst`. However, in order to *use* any of MISST's functions, there are several **supplementary files** that must be placed alongside your Python script. Conceptually, MISST uses the following **file pipeline**:
 
 <img align="center" width="100%" src="https://github.com/Johns-Hopkins-CISRE/MISST/blob/main/docs/diagrams/file_pipelines.png?raw=true">
 
-In practice, the directory tree of a MISST project should look as follows:
+In practice, the **directory tree** of a MISST project should look as follows:
 ```shell
-    └──Your_Project
-       ├──data
-       │  ├───[subdirectory_1]
-       │  ├───[subdirectory_2]
-       │  └───[subdirectory_3]
-       ├──my_program.py
-        
+└──Your_Project
+    ├──data
+    │  ├───[subdirectory_1]
+    │  ├───[subdirectory_2]
+    │  └───[subdirectory_3]
+    ├──my_program.py
+    └──config.yaml
 ```
 - `my_program.py` represents the script that you're writing. While it *can* contain anything, you can find a barebones example [here](https://github.com/Johns-Hopkins-CISRE/MISST/blob/main/examples/jh_example/train.py).
 - For the `config.yaml` file, you should always use [this](https://github.com/Johns-Hopkins-CISRE/MISST/blob/main/examples/jh_example/config.yaml) template. You can modify and tweak parameters accordingly, but deleting an entry altogether may result in an error.
-- The data directory must abide by strict formatting rules, which is outlined in the [Dataset] section of this guide.
+- The `data` directory must abide by strict formatting rules, which is outlined in the [Dataset](https://github.com/Johns-Hopkins-CISRE/MISST/tree/main#dataset-formatting) section of this guide.
 
 For an example of how this should look, reference the [example](https://github.com/Johns-Hopkins-CISRE/MISST/tree/main/examples/jh_example) folder in the GitHub Repo.
 
 # Dataset Formatting
-In order to use MISST, a specific dataset format must be followed. This section outlines the rules for both the PSG and Hypnogram files. The program may result in an error if this formatting is not strictly adhered to.
+In order to use MISST, a specific **dataset format** must be followed. This section outlines the rules for both the PSG and Hypnogram files. The program may result in an error if this formatting is not strictly adhered to.
 
 The dataset must be placed into the `~/MISST/mist/data/` directory, with the following structure:
 - Each PSG recording **must** be in it's own subdirectory
@@ -84,21 +84,21 @@ The dataset must be placed into the `~/MISST/mist/data/` directory, with the fol
 
 The final MISST directory tree should look as follows:
 ```shell
-  └───data
-      └──raw
-          ├───[subdirectory_1]
-          │   └───EDF.edf
-          │   └───hypnogram.csv
-          ├───[subdirectory_2]
-          │   └───EDF.edf
-          │   └───hypnogram.csv
-          ├───[subdirectory_3]
-          │   └───EDF.edf
-          │   └───hypnogram.csv
-          │   ...
-          └────[subdirectory_n]
-              └───EDF.edf
-              └───hypnogram.csv
+└──data
+   └──raw
+      ├───[subdirectory_1]
+      │   └───EDF.edf
+      │   └───hypnogram.csv
+      ├───[subdirectory_2]
+      │   └───EDF.edf
+      │   └───hypnogram.csv
+      ├───[subdirectory_3]
+      │   └───EDF.edf
+      │   └───hypnogram.csv
+      │   ...
+      └────[subdirectory_n]
+          └───EDF.edf
+          └───hypnogram.csv
 ```
 Each Hypnogram ".csv" file should follow this format:
 | type        | start                   | stop                    |
@@ -127,4 +127,4 @@ The following table represents current progress on MISST.
 # Acknowledgements
 MISST was developed by Hudson Liu over the course of an internship led by Luu Van Pham, M.D. (IT Director of the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*). Additionally, this project was made possible thanks to Lenise Kim's gold-standard murine sleep staging data. 
 
-MISST's logo design is the result of a combined effort by both [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files) and [Tomona Oishi](https://github.com/TheIllusioner).
+MISST's logo is the product of a combined effort by both [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files) and [Tomona Oishi](https://github.com/TheIllusioner).
