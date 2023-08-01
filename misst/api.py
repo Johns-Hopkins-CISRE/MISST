@@ -28,13 +28,16 @@ def __validate_yaml_values(config: dict):
 
     # Check for model-type mismatch
     if model_params["model_type"] not in model_params["archi_params"]:
-        raise ValueError("The \"model_type\" entry in the config.yaml file is invalid; \
-            the value of \"model_type\" must match one of the \"archi_params\" keys.")
-    
+        msg = "The \"model_type\" entry in the config.yaml file is invalid; \
+            the value of \"model_type\" must match one of the \"archi_params\" keys."
+        short_err(msg, ValueError(msg))
+
     # Check for tuner-type mismatch
     if model_params["model_type"] not in model_params["archi_params"]:
-        raise ValueError("The \"tuner_configs\" entry in the config.yaml file is invalid; \
-            the value of \"model_type\" must match one of the \"archi_params\" keys.")
+        msg = "The \"tuner_configs\" entry in the config.yaml file is invalid; \
+            the value of \"model_type\" must match one of the \"archi_params\" keys."
+        short_err(msg, ValueError(msg))
+        
     
 
 def preprocess_and_train(config: dict, path: str):
@@ -93,4 +96,6 @@ def preprocess_and_train(config: dict, path: str):
         case "GUI" | "DIST_GUI" | "TUNER_GUI":
             DistributedGUI(path, config["export_dir"], config["mode"])
         case _:
-            raise ValueError(f"The \"mode\" entry in the YAML configuration file is invalid.") from None
+            msg = f"The \"mode\" entry in the YAML configuration file is invalid."
+            short_err(msg, ValueError(msg))
+        

@@ -13,7 +13,7 @@
 
 MISST employs deep neural networks to **automate the grading of murinae polysomnograms** (PSGs). This program was developed as part of a research project conducted at the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*. By using a combination of residual connections, Bottleneck blocks, and fully-connected layers, MISST is able to classify raw PSGs **with little to no preprocessing**, while still remaining **lightweight** and **consistent**.
 
-Despite the abundance of existing sleep staging algorithms, none were adept at grading Murine sleep patterns. MISST reached a validation accuracy of 87.6% and a Cohen's Kappa of 0.74.
+Despite the abundance of existing sleep staging algorithms, few were specifically designed for murine sleep patterns. MISST reached a validation accuracy of 87.6% and a Cohen's Kappa of 0.74.
 
 # Features
 - Bottlenecked CNN with a Preactivation ResNet structure
@@ -134,7 +134,9 @@ Follow these steps if you'd like to train a new model using MISST's ModelTrainer
 ### Lead Developer: Hudson Liu &bull; 🖥️ GitHub [@hudson-liu](https://github.com/Hudson-Liu) &bull; 📧 Email hudsonliu0@gmail.com
 ### Mentor/Team Lead: [Luu Van Pham, M.D.](https://www.hopkinsmedicine.org/profiles/details/luu-pham)
 ### Team Member: Lenise Kim
-### Logo Design: [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files)
+### Logo Design: [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files) & Tomona Oishi
 
 # Acknowledgements
-This program was developed by Hudson Liu over the course of an internship led by Luu Van Pham, M.D. (IT Director of the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*). The pre-trained model uses data by Lenise Kim. The logo design comes from [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files).
+MISST was developed by Hudson Liu over the course of an internship led by Luu Van Pham, M.D. (IT Director of the *Johns Hopkins Center for Interdisciplinary Sleep Research and Education*). Additionally, this project could not have been possible without Lenise Kim's gold-standard murine sleep staging data. 
+
+The logo design comes from [delogodesign](https://www.fiverr.com/delogodesign/design-2-professional-logo-with-source-files), and we extend a special thanks to Tomona Oishi for helping with graphic design changes.

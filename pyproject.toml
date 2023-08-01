@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "misst"
-version = "0.9.1"
+version = "0.1.1"
 description = "Automated murine polysomnogram sleep staging for Python."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,3 +30,6 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/Johns-Hopkins-CISRE/MISST"
+
+[project.optional-dependencies]
+dev = ["twine>=4.0.2"]
