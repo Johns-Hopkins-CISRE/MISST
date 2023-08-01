@@ -33,7 +33,7 @@ This program was developed as part of a research project conducted at the *Johns
   - Updated in real-time during training
 - **Prediction** Error Distribution graphs
   - Incorporates a custom metric to directly interface with the model predictions
-- **Progress** bars for progress tracking
+- **Built-in failsafes** for early stopping
 
 <img align="center" width="100%" height="1" src="https://github.com/Johns-Hopkins-CISRE/MISST/blob/main/docs/img/HD_transparent_picture.png">
 
@@ -41,8 +41,8 @@ This program was developed as part of a research project conducted at the *Johns
 System Requirements:
 - Python 3.10 or later
 - A system with 8 GB RAM or more
-- At least 30 GB of free disk space
-- Windows, Unix, or MacOS
+- At least 5 GB of free disk space
+- Windows, MacOS, or Linux 
 
 To install MISST, run the following command:
 ```shell
