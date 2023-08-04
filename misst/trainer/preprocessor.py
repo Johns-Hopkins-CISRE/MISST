@@ -91,8 +91,15 @@ class PreProcessor():
 
     def import_and_preprocess(self) -> None:
         """Imports and preprocesses all the training data, then saves them as .npz files"""
+        # Test if raw directory exists 
+        raw_path = f"{self.PATH}data/raw/"
+        if os.path.isdir(raw_path):
+            os.chdir(raw_path)
+        else:
+            print("Warning: The \"raw\" data directory does not exist. MISST will automatically create it.")
+            os.makedirs(raw_path)
+
         # Get all dirs
-        os.chdir(f"{self.PATH}data/raw/")
         all_dirs = os.listdir()
 
         # Keep MNE from outputting unnecessary log data

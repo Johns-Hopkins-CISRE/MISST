@@ -68,8 +68,14 @@ def preprocess_and_train(config: dict, path: str):
         filename = f"hps_{config['tuner_file_to_load']['tuner_type'].name}\
             _{model_params['model_type'].name}\
             _{config['tuner_file_to_load']['tuned_params'].name}.pkl"
-        with open(filename, "rb") as f:
-            best_hps = pickle.load(f)
+        try:
+            with open(filename, "rb") as f:
+                best_hps = pickle.load(f)
+        except FileNotFoundError as err:
+            msg = ("The file containing tuned model parameters could not be found. This file " +
+                "is created after the MISST tuner is executed, and can be found in the \"data\" " +
+                "directory.")
+            short_err(msg, err)
         # Adjusts parameters accordingly
         match config["tuner_file_to_load"]["tuned_params"]:
             case "model":

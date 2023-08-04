@@ -10,7 +10,7 @@
             "request": "launch",
             "console": "integratedTerminal",
             "program": "train.py",
-            "cwd": "${workspaceFolder}/examples/jh_example/"
+            "cwd": "${workspaceFolder}/examples/training/"
         },
         {
             "name": "Run MISST Generator",
