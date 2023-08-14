@@ -367,9 +367,9 @@ class ModelTrainer(DistributedTrainer, TunerTrainer):
     @override
     def _import_data(self) -> GeneratorDataset | ArrayDataset: 
         """Creates two generators, one for training and one for validation"""
-        train_gen = DataGenerator(self.PATH, self.params["batch_size"], "train", self.params["model_type"])
-        val_gen = DataGenerator(self.PATH, self.params["batch_size"], "val", self.params["model_type"])
-        test_gen = DataGenerator(self.PATH, self.params["batch_size"], "Splits.TEST", self.params["model_type"])
+        train_gen = DataGenerator(self.PATH, self.params["batch_size"], "TRAIN", self.params["model_type"])
+        val_gen = DataGenerator(self.PATH, self.params["batch_size"], "VAL", self.params["model_type"])
+        test_gen = DataGenerator(self.PATH, self.params["batch_size"], "TEST", self.params["model_type"])
         return GeneratorDataset(train_gen, val_gen, test_gen)
 
     @override

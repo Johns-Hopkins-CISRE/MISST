@@ -11,11 +11,13 @@ import sys
 import shutil
 import mne
 import pickle
+import math
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import glob
 import re
+import shutil
 
 from misst.trainer.utils.error_handler import short_err
 
@@ -25,12 +27,16 @@ class MissingChannelsException(Exception):
     pass
 
 
+class MissingHypnogramColumnsException(Exception):
+    """Acts as a flag for when a Hypnogram is missing columns"""
+    pass
+
+
 class PreProcessor():
     """Handles preprocessing of raw polysomnogram data"""
     
     # Configurable Constants
     GROUP_LEN = 100 # Length of each segment
-    RECORDING_LEN = 10 # 10 seconds
     DOWNSAMPLING_RATE = 10 # Must be a factor of sample_rate, 10x downsample, 1000 samples per 10 secs
     RANDOM_SEED = 97109111103117115 # Random seed used by NumPy random generator
     MARGIN = 0.01 # Margin used for determining if float is int
@@ -39,16 +45,20 @@ class PreProcessor():
         "S2":  1,
         "REM": 2
     }
+    SPLIT_NAMES = ["TRAIN", "VAL", "TEST"] # Names of each dataset split
+    HYPNOGRAM_COLUMNS = ["type", "start", "stop"]
 
     def __init__(self, 
-        path: str, annotations: dict, 
+        path: str, epoch_len: int,
+        annotations: dict, 
         dataset_split: dict,
         balance_ratios: dict,
         channels: list[str],
-        edf_regex: str = "\.edf$", 
-        hypnogram_regex: str = "\.csv"
+        edf_regex: str = r"^.*\.edf$", 
+        hypnogram_regex: str = r"^.*\.csv$"
     ):
         self.PATH = path
+        self.EPOCH_LEN = epoch_len
         self.ANNOTATIONS = annotations
         self.DATASET_SPLIT = dataset_split
         self.BALANCE_RATIOS = balance_ratios
@@ -66,13 +76,33 @@ class PreProcessor():
     
     def __parse_list(self, main_list: list[int], ratio: list[int]) -> list[int]:
         """Splits a list up into sublists of the ratio specified by parser"""
+        # Calculate decimal lengths
         total = sum(ratio)
-        parse_lens = [round(len(main_list) * (val / total)) for val in ratio]
+        parse_lens = [len(main_list) * (val / total) for val in ratio]
+
+        # Zero Sum Change Rounding; keeps rounding error less than 1
+        diff = 0
+        rounded = []
+        for val in parse_lens:
+            if abs(diff + val - math.floor(val)) < 1:
+                diff += val - math.floor(val)
+                rounded.append(math.floor(val))
+            elif abs(diff + val - math.ceil(val)) < 1:
+                diff += val - math.ceil(val)
+                rounded.append(math.ceil(val))
+
+        # Ensure that no length is zero
+        for ind, val in enumerate(rounded):
+            if val == 0:
+                rounded[rounded.index(max(rounded))] -= 1
+                rounded[ind] += 1
+
+        # Parse list
         parsed = []
         start = 0
-        for length in parse_lens:
+        for length in rounded:
             parsed.append(main_list[start:start+length])
-            start = length
+            start += length
         return parsed
 
     def import_example_edf(self) -> mne.io.BaseRaw:
@@ -137,15 +167,20 @@ class PreProcessor():
                 # Save edf if valid
                 valid_files.append((directory, valid_edfs[0], valid_hypnograms[0]))
         
+        # Check to see if there are at least 3 directories
+        if len(valid_files) < 3:
+            msg = "There are not enough recordings; MISST requires at least 3 recordings in order to properly preprocess the data."
+            short_err(msg, FileNotFoundError(msg))
+
         # Break directories up into slices
         rng = np.random.default_rng(seed=self.RANDOM_SEED)
         rng.shuffle(valid_files)
         splitted_files = self.__parse_list(valid_files, list(self.DATASET_SPLIT.values()))
 
         # Iterate over corresponding directories for each slice
-        self.__use_dir(f"{self.PATH}data/processed/", file=False)
+        self.__use_dir(f"{self.PATH}data/normalized/", file=False)
         for ind, files_in_split in enumerate(tqdm(splitted_files, desc="Preprocessing Splits", file=sys.stdout)):
-            split_name = list(self.DATASET_SPLIT.keys())[ind]
+            split_name = self.SPLIT_NAMES[ind]
             iter_desc = f"Preprocessing {split_name} Data"
             for directory, edf, hypnogram in tqdm(files_in_split, desc=iter_desc, leave=False, file=sys.stdout):
                 balance_ratio = self.BALANCE_RATIOS[split_name]
@@ -153,13 +188,20 @@ class PreProcessor():
                     x, y = self.__preproc_edf_and_hypno(directory, edf, hypnogram, balance_ratio)
                 except MissingChannelsException:
                     print(
-                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names " + 
-                        "(no \"Raw Score\" channel). This directory will be skipped. Note that this may cause" +
+                        f"Warning: The .edf file of directory \"{directory}\" has incorrect channel names. " + 
+                        "This directory will be skipped. Note that this may cause" +
                         "the train/test/val split to become inaccurate."
                     )
                     continue
+                except MissingHypnogramColumnsException:
+                    print(
+                        f"Warning: The .csv file of directory \"{directory}\" is missing important column " +
+                        "names (needs a \"type\", \"start\", and \"stop\" column). This directory will be " + 
+                        "skipped. Note that this may cause the train/test/split to become inaccurate."
+                    )
+                    continue
                 # Create folder and save data
-                newpath = f"{self.PATH}data/processed/{split_name}"
+                newpath = f"{self.PATH}data/normalized/{split_name}"
                 self.__use_dir(newpath, delete=False)
                 os.chdir(newpath)
                 np.savez(f"{directory}.npz", x=x, y=y, allow_pickle=False)
@@ -173,7 +215,9 @@ class PreProcessor():
 
         # Import annotations & remove unnecessary columns
         df = pd.read_csv(hypnogram_name)
-        df = df.drop(labels=["location", "startval", "stopval", "change"], axis=1)
+        if set(df.columns.values) != set(self.HYPNOGRAM_COLUMNS):
+            raise MissingHypnogramColumnsException()
+        df = df[df.columns.intersection(self.HYPNOGRAM_COLUMNS)]
         df = df.sort_values("start", axis=0)
         labels = df.to_numpy()
 
@@ -217,12 +261,12 @@ class PreProcessor():
         del edf
 
         # Calculate remaining offset
-        rec_samp = self.__sample_rate * self.RECORDING_LEN
+        rec_samp = self.__sample_rate * self.EPOCH_LEN
         event_samples = int(rec_samp * len(labels))
         offset = np.size(edf_array, axis=1) - event_samples
 
         # Align the ends of "labels" and "edf_array"
-        if offset >= 0:
+        if offset > 0:
             # Remove samples from the end of the edf list to account for offset
             edf_array = edf_array[:, :-offset]
         elif offset < 0:
@@ -299,7 +343,7 @@ class PreProcessor():
         # Split data into samples
         prev = 0
         x = []
-        rec_samp = int(self.RECORDING_LEN * self.__sample_rate)
+        rec_samp = int(self.EPOCH_LEN * self.__sample_rate)
         for next_ in range(rec_samp, edf_array.shape[1] + rec_samp, rec_samp):
             slice_ = edf_array[:, prev:next_]
             x.append(slice_)
@@ -328,10 +372,10 @@ class PreProcessor():
             x_norm.append(sample_norm)
         return np.array(x_norm)
         
-    def regroup(self):
+    def regroup(self, delete_prev: bool = True):
         """Regroups the preprocessed data"""    
         # Iterate through splits
-        os.chdir(self.PATH + "data/processed/")
+        os.chdir(self.PATH + "data/normalized/")
         all_splits = os.listdir()
         for split in tqdm(all_splits, desc="Regrouping Splits", file=sys.stdout):
             # Create the corresponding regrouped dir
@@ -340,11 +384,11 @@ class PreProcessor():
             x = []
             y = []
             counter = 0
-            os.chdir(f"{self.PATH}data/processed/{split}/")
+            os.chdir(f"{self.PATH}data/normalized/{split}/")
             all_files = os.listdir()
             for rec_name in tqdm(all_files, desc=f"Regrouping {split} Data", leave=False, file=sys.stdout):
                 # Add to data queue
-                os.chdir(f"{self.PATH}data/processed/{split}/")
+                os.chdir(f"{self.PATH}data/normalized/{split}/")
                 rec = np.load(rec_name)
                 x.extend(rec["x"])
                 y.extend(rec["y"])
@@ -363,15 +407,19 @@ class PreProcessor():
             
             # Non-Grouped Remaining Data
             print(f"Leftover Data: {len(x)}")
+        
+        # Cleanup; delete unnecessary "normalized" directory
+        if delete_prev:
+            shutil.rmtree(f"{self.PATH}data/normalized/")
 
-    def group_shuffle(self):
+    def group_shuffle(self, delete_prev: bool = True):
         """Shuffles the data group-by-group"""
         # Declare paths & list files
-        os.chdir(self.PATH + "data/regrouped/")
+        os.chdir(f"{self.PATH}data/regrouped/")
         all_splits = os.listdir()
         for split in tqdm(all_splits, desc="Shuffling Splits", file=sys.stdout):
             # Create the corresponding shuffled dir
-            self.__use_dir(f"{self.PATH}data/shuffled/{split}/", delete=True)
+            self.__use_dir(f"{self.PATH}data/preprocessed/{split}/", delete=True)
             
             # Get all directories in this directory
             os.chdir(f"{self.PATH}data/regrouped/{split}/")
@@ -390,7 +438,7 @@ class PreProcessor():
             seg_y = [] # Running Segments for y
             for counter, ind in enumerate(tqdm(rand_shuf, desc=f"Shuffling {split} Data", leave=False, file=sys.stdout)):
                 if counter % (self.GROUP_LEN - 1) == 0 and counter != 0:
-                    os.chdir(f"{self.PATH}data/shuffled/{split}/")
+                    os.chdir(f"{self.PATH}data/preprocessed/{split}/")
                     np.savez(f"{counter}.npz", x=seg_x, y=seg_y, allow_pickle=False)
                     seg_x.clear()
                     seg_y.clear()
@@ -400,6 +448,10 @@ class PreProcessor():
                         arr = np.load(all_dirs[rec])
                         seg_x.append(arr["x"][ind - rec_ranges[rec] - 1])
                         seg_y.append(arr["y"][ind - rec_ranges[rec] - 1])
+        
+        # Cleanup; delete unnecessary "regrouped" directory
+        if delete_prev:
+            shutil.rmtree(f"{self.PATH}data/regrouped/")
 
     def save_len(self) -> None:
         """Saves the number of segments in the preprocessed data"""
@@ -408,7 +460,13 @@ class PreProcessor():
         split_lens = {}
         for split in splits:
             # Iterate through recordings and sums length of each one
-            os.chdir(f"{self.PATH}data/regrouped/{split}/")
+            try:
+                os.chdir(f"{self.PATH}data/preprocessed/{split}/")
+            except FileNotFoundError as err:
+                msg = ("The \"save_len\" function can only be executed after preprocessing," + 
+                    "as it requires access to the \"preprocessed\" directory, which is " + 
+                    "generated during preprocessing.")
+                short_err(msg, err)
             all_recs = os.listdir()
             total_len = 0
             for filename in all_recs:
@@ -434,18 +492,3 @@ class PreProcessor():
             else:
                 for f in files:
                     shutil.rmtree(f)
-
-
-if __name__ == "__main__":
-    """Unit-Test: Tests the PreProcessor's capabilities"""
-    PATH = "C:/Users/hudso/Documents/Programming/Python/JH RI/MISST/"
-    EDF_REGEX = r".*EDF\.edf$"
-    HYPNOGRAM_REGEX = r"\bhynogram\.csv\b"
-    preproc = PreProcessor(PATH, EDF_REGEX, HYPNOGRAM_REGEX)
-
-    # Each method can be done asynchronously (as long as they're executed in order)
-    preproc.import_and_preprocess()
-    preproc.regroup()
-    preproc.group_shuffle()
-    preproc.save_len()
-    

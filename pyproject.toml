@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "misst"
-version = "0.1.1"
+version = "0.1.2"
 description = "Automated murine polysomnogram sleep staging for Python."
 readme = "docs/README_PYPI.md"
 requires-python = ">=3.10"
@@ -32,7 +32,8 @@ dependencies = [
     "scikit_learn >= 1.3.0",
     "tensorflow >= 2.9.1",
     "tensorflow_addons >= 0.20.0",
-    "tqdm >= 4.64.1"
+    "tqdm >= 4.64.1",
+    "EDFlib-Python >= 1.0.7"
 ]
 
 [project.urls]

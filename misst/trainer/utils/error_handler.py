@@ -34,6 +34,6 @@ def short_err(msg: str, err: Exception):
         "\x1b]8;;https://github.com/Johns-Hopkins-CISRE/MISST/issues/new\x1b\\https://github.com/Johns-Hopkins-CISRE/MISST/issues/new\x1b]8;;\x1b\\")
 
     # Wait for user interaction and exit
-    if input("Press any key to exit...") == "DEBUG":
+    if input("\nPress Enter to exit...") == "DEBUG":
         raise err
     sys.exit(0)

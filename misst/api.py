@@ -37,15 +37,16 @@ def __validate_yaml_values(config: dict):
         msg = "The \"tuner_configs\" entry in the config.yaml file is invalid; \
             the value of \"model_type\" must match one of the \"archi_params\" keys."
         short_err(msg, ValueError(msg))
-    
+
 def preprocess_and_train(config: dict, path: str):
     """Runs preprocessing and training of the MISST model"""
     # Verify config
     __validate_yaml_values(config)
 
-    # Preprocesses data
-    if config["preprocess_data"]:
-        preproc = PreProcessor(path, 
+    # Checks if pre-processed data already exists
+    if config["override_existing_preprocessed_data"] or not os.path.exists(f"{path}data/preprocessed/"):
+        preproc = PreProcessor(path,
+            config["epoch_len"],
             config["annotations"],
             config["dataset_split"],
             config["balance_ratios"],
@@ -57,6 +58,7 @@ def preprocess_and_train(config: dict, path: str):
         preproc.regroup()
         preproc.group_shuffle()
         preproc.save_len()
+        preproc.clear_dirs()
 
     # Defines training parameters
     model_params = config["model_params"]

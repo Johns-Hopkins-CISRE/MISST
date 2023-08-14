@@ -11,7 +11,7 @@
 edf_regex: '^(?!vent\.edf$).*\.edf$'
 hypnogram_regex: '\bhynogram\.csv\b'
 export_dir: data # Default is "data"
-preprocess_data: True # Default is True, set as False to use pre-existing preprocessed data
+override_existing_preprocessed_data: False # Default is False, set as True to override pre-existing preprocessed data
 annotations: # The annotations used to denote S0, S2, and REM sleep stages
   S0:  SLEEP-S0
   S2:  SLEEP-S2
@@ -34,6 +34,7 @@ balance_ratios: # The distribution of classes within each split, "null" = "Do no
     S2:  1 
     REM: 1
 channels: [EEG1, EEG2, EMGnu] # Names of PSG channels that will be used
+epoch_len: 10 # 10 seconds
 
 # 888888ba,                              bb        888888888888                                  88                
 # 88    `"8b                             88             88                                       88                       

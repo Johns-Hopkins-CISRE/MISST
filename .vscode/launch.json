@@ -19,13 +19,6 @@
             "console": "integratedTerminal",
             "module": "misst",
             "args": ["--mode", "generate"]
-        },
-        {
-            "name": "Unittest MISST PreProcessor",
-            "type": "python",
-            "request": "launch",
-            "console": "integratedTerminal",
-            "module": "misst.trainer.preprocessor",
         }
     ]
 }
